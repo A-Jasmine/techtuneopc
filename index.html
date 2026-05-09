@@ -118,6 +118,12 @@
           </div>
           <button class="btn primary" onclick="openEmpDialog()"><i data-lucide="plus"></i> Add Employee</button>
         </div>
+        <div class="filter-bar" style="margin-bottom:14px">
+          <div class="filter-field grow">
+            <i data-lucide="search"></i>
+            <input id="emp-search" placeholder="Search by name or position…" oninput="renderEmployees()" />
+          </div>
+        </div>
         <div id="emp-list" class="list"></div>
       </div>
     </section>

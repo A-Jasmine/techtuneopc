@@ -888,7 +888,7 @@ textarea:focus {
   margin-top: 14px;
   padding: 20px 26px;
   border-radius: var(--radius-lg);
-  background: linear-gradient(135deg, #111 0%, #1e3a5f 100%);
+  background: linear-gradient(135deg, #059669 0%, #0891b2 100%);
   color: #fff;
   display: flex;
   align-items: center;
@@ -909,7 +909,7 @@ textarea:focus {
   font-weight: 700;
   font-family: var(--mono);
   letter-spacing: -1px;
-  color: #93c5fd;
+  color: #d1fae5;
 }
 
 /* ── MODAL ── */
@@ -1332,7 +1332,7 @@ textarea:focus {
 
 /* Net bar gradient */
 .net-bar {
-  background: linear-gradient(135deg, #111111, #1f2937 60%, #2563eb) !important;
+  background: linear-gradient(135deg, #059669 0%, #0891b2 100%) !important;
   color: #fff;
 }
 /* ── USER MENU (TOPBAR) ── */
