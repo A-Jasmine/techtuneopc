@@ -5,9 +5,12 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Techtune Payroll System</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="styles.css" />
   <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/jspdf-autotable@3.8.2/dist/jspdf.plugin.autotable.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
   <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -67,13 +70,12 @@
         <div class="card-head">
           <div>
             <h2><i data-lucide="download"></i> Export Summary</h2>
-            <small>Download payroll reports as CSV</small>
+          <small>Download styled Excel reports</small>
           </div>
         </div>
         <div class="row">
-          <button class="btn" onclick="exportSummaryCSV(7)"><i data-lucide="file-spreadsheet"></i> Weekly CSV</button>
-          <button class="btn" onclick="exportSummaryCSV(14)"><i data-lucide="file-spreadsheet"></i> Bi-weekly
-            CSV</button>
+          <button class="btn" onclick="exportSummaryCSV(7)"><i data-lucide="file-spreadsheet"></i> Weekly Excel</button>
+          <button class="btn" onclick="exportSummaryCSV(14)"><i data-lucide="file-spreadsheet"></i> Bi-weekly Excel</button>
         </div>
       </div>
 
@@ -117,12 +119,6 @@
             <small>Manage your team roster</small>
           </div>
           <button class="btn primary" onclick="openEmpDialog()"><i data-lucide="plus"></i> Add Employee</button>
-        </div>
-        <div class="filter-bar" style="margin-bottom:14px">
-          <div class="filter-field grow">
-            <i data-lucide="search"></i>
-            <input id="emp-search" placeholder="Search by name or position…" oninput="renderEmployees()" />
-          </div>
         </div>
         <div id="emp-list" class="list"></div>
       </div>

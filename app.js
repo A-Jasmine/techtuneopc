@@ -116,12 +116,8 @@ async function deleteEmp(id) {
 
 function renderEmployees() {
   const el = document.getElementById("emp-list");
-  const q = (document.getElementById("emp-search")?.value || "").trim().toLowerCase();
-  let list = state.employees;
-  if (q) list = list.filter(e => e.name.toLowerCase().includes(q) || (e.position || "").toLowerCase().includes(q));
   if (state.employees.length === 0) { el.innerHTML = '<div class="empty-state">No employees yet — add one to get started.</div>'; return; }
-  if (list.length === 0) { el.innerHTML = '<div class="empty-state">No employees match your search.</div>'; return; }
-  el.innerHTML = list.map(e => `
+  el.innerHTML = state.employees.map(e => `
     <div class="list-item">
       <div class="emp-avatar">${e.name.charAt(0).toUpperCase()}</div>
       <div class="info">
@@ -264,7 +260,7 @@ function editPeriod(id) {
           <small>Base ₱${(+emp.base_rate||1000).toLocaleString()}/day • Edit work entries and compute net pay</small>
         </div>
         <div class="row">
-          <button class="btn" onclick="exportCSV('${p.id}')"><i data-lucide="file-spreadsheet"></i> CSV</button>
+          <button class="btn" onclick="exportCSV('${p.id}')"><i data-lucide="file-spreadsheet"></i> Excel</button>
           <button class="btn" onclick="exportPDF('${p.id}')"><i data-lucide="file-down"></i> PDF</button>
         </div>
       </div>
@@ -506,7 +502,7 @@ function renderDashboard() {
   if (chartBar) chartBar.destroy();
   if (chartPie) chartPie.destroy();
   Chart.defaults.color = '#999999';
-  Chart.defaults.font.family = "'DM Sans', sans-serif";
+  Chart.defaults.font.family = "'Plus Jakarta Sans', sans-serif";
 
   const accentColors = ['#2563eb', '#16a34a', '#d97706', '#dc2626', '#7c3aed', '#0891b2'];
   chartBar = new Chart(document.getElementById("chart-bar"), {
@@ -525,481 +521,233 @@ function renderDashboard() {
   });
 }
 
-// =============== EXPORTS ===============
+// =============== EXPORTS (XLSX with styling) ===============
+const XLS_BORDER = { style: "thin", color: { rgb: "BFBFBF" } };
+const XLS_BORDERS = { top: XLS_BORDER, bottom: XLS_BORDER, left: XLS_BORDER, right: XLS_BORDER };
+const xStyle = (extra = {}) => ({
+  font: { name: "Calibri", sz: 11, color: { rgb: "111111" }, ...(extra.font || {}) },
+  alignment: { vertical: "center", horizontal: "left", wrapText: true, ...(extra.alignment || {}) },
+  border: XLS_BORDERS,
+  ...(extra.fill ? { fill: extra.fill } : {}),
+  ...(extra.numFmt ? { numFmt: extra.numFmt } : {})
+});
+const xTitle = (text) => ({ v: text, t: "s", s: { font: { name: "Calibri", sz: 18, bold: true, color: { rgb: "FFFFFF" } }, fill: { fgColor: { rgb: "111111" } }, alignment: { horizontal: "center", vertical: "center" } } });
+const xSection = (text) => ({ v: text, t: "s", s: { font: { name: "Calibri", sz: 12, bold: true, color: { rgb: "FFFFFF" } }, fill: { fgColor: { rgb: "333333" } }, alignment: { horizontal: "left", vertical: "center" }, border: XLS_BORDERS } });
+const xHead = (text) => ({ v: text, t: "s", s: { font: { name: "Calibri", sz: 11, bold: true, color: { rgb: "FFFFFF" } }, fill: { fgColor: { rgb: "1F1F1F" } }, alignment: { horizontal: "center", vertical: "center" }, border: XLS_BORDERS } });
+const xLabel = (text) => ({ v: text, t: "s", s: { font: { name: "Calibri", sz: 11, bold: true, color: { rgb: "111111" } }, fill: { fgColor: { rgb: "F2F2F2" } }, alignment: { horizontal: "left", vertical: "center" }, border: XLS_BORDERS } });
+const xText = (text, opts = {}) => ({ v: text ?? "", t: "s", s: xStyle(opts) });
+const xNum = (n, opts = {}) => ({ v: Number(n || 0), t: "n", s: xStyle({ ...opts, numFmt: opts.numFmt || '#,##0.00', alignment: { horizontal: "right", vertical: "center", ...(opts.alignment || {}) } }) });
+const xTotal = (text) => ({ v: text, t: "s", s: { font: { name: "Calibri", sz: 11, bold: true, color: { rgb: "111111" } }, fill: { fgColor: { rgb: "DDDDDD" } }, alignment: { horizontal: "left", vertical: "center" }, border: XLS_BORDERS } });
+const xTotalNum = (n) => ({ v: Number(n || 0), t: "n", s: { font: { name: "Calibri", sz: 11, bold: true, color: { rgb: "111111" } }, fill: { fgColor: { rgb: "DDDDDD" } }, alignment: { horizontal: "right", vertical: "center" }, numFmt: '#,##0.00', border: XLS_BORDERS } });
+
+function pushMerge(merges, r1, c1, r2, c2) { merges.push({ s: { r: r1, c: c1 }, e: { r: r2, c: c2 } }); }
+function setRowHeight(ws, idx, h) { ws['!rows'] = ws['!rows'] || []; ws['!rows'][idx] = { hpt: h }; }
+
 function exportCSV(pid) {
   const p = state.periods.find(x => x.id === pid);
   const emp = state.employees.find(e => e.id === p.employee_id);
   const t = calcPeriod(p);
+  const aoa = []; const merges = [];
 
-  const typeLabel = e => e.is_offset ? "Offset" : e.is_holiday ? (e.is_halfday ? "Holiday · Half" : "Holiday") : e.is_halfday ? "Half Day" : "Full Day";
-  const typeBadge = e => {
-    if (e.is_offset)  return `<span class="badge badge-blue">Offset</span>`;
-    if (e.is_holiday && e.is_halfday) return `<span class="badge badge-purple">Holiday · Half</span>`;
-    if (e.is_holiday) return `<span class="badge badge-purple">Holiday</span>`;
-    if (e.is_halfday) return `<span class="badge badge-amber">Half Day</span>`;
-    return `<span class="badge badge-green">Full Day</span>`;
-  };
+  aoa.push([xTitle("PAYROLL STATEMENT")]); pushMerge(merges, 0, 0, 0, 19);
+  aoa.push([xText(COMPANY.name, { font: { bold: true, sz: 12 }, alignment: { horizontal: "center" } })]); pushMerge(merges, 1, 0, 1, 19);
+  aoa.push([xText(`${COMPANY.addr1} • ${COMPANY.addr2} • ${COMPANY.email}`, { font: { sz: 10, color: { rgb: "555555" } }, alignment: { horizontal: "center" } })]); pushMerge(merges, 2, 0, 2, 19);
+  aoa.push([xText("")]);
 
-  const entryRows = p.entries.map(e => {
-    const c = calcEntry(e, emp.base_rate);
-    return `<tr>
-      <td>${e.date}</td>
-      <td>${e.location || '—'}</td>
-      <td>${to12h(e.time_in) || '—'}</td>
-      <td>${to12h(e.time_out) || '—'}</td>
-      <td>${typeBadge(e)}</td>
-      <td>${(e.brand || '').toUpperCase() || '—'}</td>
-      <td class="num">${e.sedan_qty || '—'}</td>
-      <td class="num">${e.mpv_qty || '—'}</td>
-      <td class="num">${e.sunroof_qty || '—'}</td>
-      <td class="num">${e.scrapping_qty || '—'}</td>
-      <td class="num">${e.tubes_qty || '—'}</td>
-      <td class="num">${e.divide_by || 1}</td>
-      <td class="num money">${fmt(c.commission)}</td>
-      <td class="num money">${fmt(c.otPay)}</td>
-      <td class="num money bold">${fmt(c.total)}</td>
-    </tr>`;
-  }).join("");
+  aoa.push([xSection("EMPLOYEE INFORMATION")]); pushMerge(merges, 4, 0, 4, 19);
+  aoa.push([xLabel("Employee"), xText(emp.name), xLabel("Pay Period"), xText(`${p.start_date} to ${p.end_date}`)]);
+  aoa.push([xLabel("Position"), xText(emp.position), xLabel("Pay Date"), xText(p.pay_date)]);
+  aoa.push([xLabel("Base Rate"), xText(`PHP ${(+emp.base_rate || 1000).toLocaleString()}/day`), xLabel("Days Worked"), xText(String(p.entries.length))]);
+  aoa.push([xText("")]);
 
-  const dedRows = (p.deductions || []).length
-    ? p.deductions.map(d => `<tr><td>${d.label || '—'}</td><td class="num money">₱${fmt(d.amount)}</td></tr>`).join("")
-    : `<tr><td colspan="2" style="color:#aaa;text-align:center">No deductions</td></tr>`;
+  const earnRow = aoa.length;
+  aoa.push([xSection("EARNINGS SUMMARY (PHP)")]); pushMerge(merges, earnRow, 0, earnRow, 19);
+  aoa.push([xHead("Description"), xHead("Amount")]);
+  [["Basic Salary", t.basic], ["Overtime Pay", t.ot], ["Commission", t.commission], ["Holiday Pay", t.holiday], ["Gas Allowance", t.gas]]
+    .forEach(([k, v]) => aoa.push([xText(k), xNum(v)]));
+  aoa.push([xTotal("TOTAL EARNINGS"), xTotalNum(t.earnings)]);
+  aoa.push([xText("")]);
 
-  const html = `<!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="UTF-8"/>
-<title>Payroll — ${emp.name} (${p.start_date} to ${p.end_date})</title>
-<style>
-  @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=DM+Mono:wght@400;500&display=swap');
-  *{box-sizing:border-box;margin:0;padding:0}
-  body{font-family:'DM Sans',sans-serif;background:#f5f5f4;color:#111;padding:36px 24px;-webkit-print-color-adjust:exact;print-color-adjust:exact}
-  .page{max-width:900px;margin:auto;background:#fff;border-radius:20px;overflow:hidden;box-shadow:0 8px 32px rgba(0,0,0,.10)}
-  /* Header */
-  .hdr{background:linear-gradient(135deg,#059669 0%,#0891b2 100%);color:#fff;padding:32px 36px 28px;position:relative;overflow:hidden}
-  .hdr::after{content:'';position:absolute;right:-40px;top:-40px;width:220px;height:220px;border-radius:50%;background:rgba(255,255,255,.07)}
-  .hdr-top{display:flex;align-items:flex-start;justify-content:space-between;gap:16px}
-  .company-name{font-size:18px;font-weight:700;letter-spacing:-.3px}
-  .company-sub{font-size:11px;opacity:.75;margin-top:3px}
-  .doc-label{font-size:10px;font-weight:700;letter-spacing:2px;text-transform:uppercase;opacity:.7;text-align:right}
-  .doc-title{font-size:28px;font-weight:700;letter-spacing:-1px;text-align:right;margin-top:2px}
-  .hdr-meta{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-top:24px;padding-top:22px;border-top:1px solid rgba(255,255,255,.22)}
-  .meta-item small{font-size:10px;font-weight:700;letter-spacing:1.2px;text-transform:uppercase;opacity:.65;display:block;margin-bottom:4px}
-  .meta-item strong{font-size:14px;font-weight:600}
-  /* Body */
-  .body{padding:30px 36px 40px}
-  /* Summary cards */
-  .summary-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:28px}
-  .summary-box{border:1px solid #e5e7eb;border-radius:14px;overflow:hidden}
-  .summary-head{background:#f9fafb;border-bottom:1px solid #e5e7eb;padding:11px 16px;font-size:10px;font-weight:700;letter-spacing:1.2px;text-transform:uppercase;color:#6b7280}
-  .summary-table{width:100%;border-collapse:collapse}
-  .summary-table td{padding:9px 16px;font-size:13px;border-bottom:1px solid #f3f4f6}
-  .summary-table tr:last-child td{border-bottom:none}
-  .summary-table .lbl{color:#6b7280;width:55%}
-  .summary-table .val{font-family:'DM Mono',monospace;font-weight:600;text-align:right}
-  .summary-table .total-row td{background:#f9fafb;font-weight:700;font-size:13.5px}
-  /* Net pay */
-  .net-box{background:linear-gradient(135deg,#059669 0%,#0891b2 100%);border-radius:14px;padding:20px 24px;display:flex;align-items:center;justify-content:space-between;margin-bottom:28px;color:#fff}
-  .net-box .lbl{font-size:11px;font-weight:700;letter-spacing:2px;text-transform:uppercase;opacity:.75}
-  .net-box .amount{font-family:'DM Mono',monospace;font-size:26px;font-weight:700;letter-spacing:-1px;color:#d1fae5}
-  /* Daily log */
-  .section-title{font-size:11px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:#9ca3af;margin-bottom:12px}
-  .log-wrap{border:1px solid #e5e7eb;border-radius:14px;overflow:hidden}
-  .log-table{width:100%;border-collapse:collapse;font-size:12px}
-  .log-table th{background:#f9fafb;padding:10px 10px;font-size:9.5px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:#6b7280;text-align:left;border-bottom:1px solid #e5e7eb;white-space:nowrap}
-  .log-table td{padding:9px 10px;border-bottom:1px solid #f3f4f6;color:#374151;vertical-align:middle}
-  .log-table tr:last-child td{border-bottom:none}
-  .log-table tr:nth-child(even) td{background:#fafafa}
-  .num{text-align:right;font-family:'DM Mono',monospace}
-  .money{color:#059669}
-  .bold{font-weight:700}
-  /* Badges */
-  .badge{display:inline-block;padding:2px 8px;border-radius:999px;font-size:10px;font-weight:700;letter-spacing:.3px;white-space:nowrap}
-  .badge-green{background:#d1fae5;color:#065f46}
-  .badge-amber{background:#fef3c7;color:#92400e}
-  .badge-purple{background:#ede9fe;color:#4c1d95}
-  .badge-blue{background:#dbeafe;color:#1e40af}
-  /* Print */
-  .print-btn{display:flex;gap:10px;justify-content:flex-end;margin-bottom:20px}
-  .btn-print{font-family:'DM Sans',sans-serif;font-size:13px;font-weight:600;padding:9px 20px;border-radius:10px;border:none;cursor:pointer;background:linear-gradient(135deg,#059669,#0891b2);color:#fff;box-shadow:0 2px 8px rgba(5,150,105,.25)}
-  .btn-dl{font-family:'DM Sans',sans-serif;font-size:13px;font-weight:600;padding:9px 20px;border-radius:10px;border:1px solid #e5e7eb;cursor:pointer;background:#f9fafb;color:#374151}
-  @media print{
-    body{background:#fff;padding:0}
-    .page{box-shadow:none;border-radius:0}
-    .print-btn{display:none}
-  }
-</style>
-</head>
-<body>
-<div class="print-btn">
-  <button class="btn-dl" onclick="downloadCSVFallback()">⬇ Download CSV</button>
-  <button class="btn-print" onclick="window.print()">🖨 Print / Save PDF</button>
-</div>
-<div class="page">
-  <div class="hdr">
-    <div class="hdr-top">
-      <div>
-        <div class="company-name">${COMPANY.name}</div>
-        <div class="company-sub">${COMPANY.addr1}, ${COMPANY.addr2}</div>
-        <div class="company-sub">${COMPANY.email}</div>
-      </div>
-      <div>
-        <div class="doc-label">Document</div>
-        <div class="doc-title">Payroll Statement</div>
-      </div>
-    </div>
-    <div class="hdr-meta">
-      <div class="meta-item"><small>Employee</small><strong>${emp.name}</strong></div>
-      <div class="meta-item"><small>Position</small><strong>${emp.position || '—'}</strong></div>
-      <div class="meta-item"><small>Base Rate</small><strong>₱${(+emp.base_rate||1000).toLocaleString()}/day</strong></div>
-      <div class="meta-item"><small>Pay Period</small><strong>${p.start_date} → ${p.end_date}</strong></div>
-      <div class="meta-item"><small>Pay Date</small><strong>${p.pay_date}</strong></div>
-      <div class="meta-item"><small>Days Worked</small><strong>${p.entries.length}</strong></div>
-    </div>
-  </div>
+  const dedRow = aoa.length;
+  aoa.push([xSection("DEDUCTIONS (PHP)")]); pushMerge(merges, dedRow, 0, dedRow, 19);
+  aoa.push([xHead("Description"), xHead("Amount")]);
+  if (!(p.deductions || []).length) aoa.push([xText("No deductions"), xNum(0)]);
+  else (p.deductions || []).forEach(d => aoa.push([xText(d.label || "—"), xNum(d.amount)]));
+  aoa.push([xTotal("TOTAL DEDUCTIONS"), xTotalNum(t.deductions)]);
+  aoa.push([xText("")]);
 
-  <div class="body">
-    <div class="summary-grid">
-      <div class="summary-box">
-        <div class="summary-head">Earnings</div>
-        <table class="summary-table">
-          <tr><td class="lbl">Basic Salary</td><td class="val">₱${fmt(t.basic)}</td></tr>
-          <tr><td class="lbl">Overtime Pay</td><td class="val">₱${fmt(t.ot)}</td></tr>
-          <tr><td class="lbl">Commission</td><td class="val">₱${fmt(t.commission)}</td></tr>
-          <tr><td class="lbl">Holiday Pay</td><td class="val">₱${fmt(t.holiday)}</td></tr>
-          <tr><td class="lbl">Gas Allowance</td><td class="val">₱${fmt(t.gas)}</td></tr>
-          <tr class="total-row"><td class="lbl">Total Earnings</td><td class="val">₱${fmt(t.earnings)}</td></tr>
-        </table>
-      </div>
-      <div class="summary-box">
-        <div class="summary-head">Deductions</div>
-        <table class="summary-table">
-          ${dedRows}
-          <tr class="total-row"><td class="lbl">Total Deductions</td><td class="val">₱${fmt(t.deductions)}</td></tr>
-        </table>
-      </div>
-    </div>
+  const netR = aoa.length;
+  aoa.push([{ v: "NET PAY", t: "s", s: { font: { name: "Calibri", sz: 14, bold: true, color: { rgb: "FFFFFF" } }, fill: { fgColor: { rgb: "111111" } }, alignment: { horizontal: "left", vertical: "center" }, border: XLS_BORDERS } },
+            { v: Number(t.net || 0), t: "n", s: { font: { name: "Calibri", sz: 14, bold: true, color: { rgb: "FFFFFF" } }, fill: { fgColor: { rgb: "111111" } }, alignment: { horizontal: "right", vertical: "center" }, numFmt: '"PHP "#,##0.00', border: XLS_BORDERS } }]);
+  setRowHeight(aoa, netR, 28);
+  aoa.push([xText("")]);
 
-    <div class="net-box">
-      <div class="lbl">Net Pay</div>
-      <div class="amount">₱${fmt(t.net)}</div>
-    </div>
-
-    <div class="section-title">Daily Work Log</div>
-    <div class="log-wrap">
-      <table class="log-table">
-        <thead>
-          <tr>
-            <th>Date</th><th>Location</th><th>In</th><th>Out</th><th>Type</th>
-            <th>Brand</th><th>Sed</th><th>MPV</th><th>Sun</th><th>Scr</th><th>Tub</th><th>Div</th>
-            <th>Commission</th><th>OT Pay</th><th>Total</th>
-          </tr>
-        </thead>
-        <tbody>${entryRows}</tbody>
-      </table>
-    </div>
-
-    <div style="margin-top:28px;text-align:center;font-size:11px;color:#9ca3af">
-      Generated ${new Date().toLocaleString('en-PH')} · Techtune Payroll System
-    </div>
-  </div>
-</div>
-<script>
-function downloadCSVFallback() {
-  const rows = ${JSON.stringify(buildCSVRows(p, emp, t))};
-  const blob = new Blob(["\uFEFF" + rows.join("\\n")], { type: "text/csv;charset=utf-8" });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a"); a.href = url;
-  a.download = "${emp.name.replace(/\s+/g, "_")}_${p.start_date}_to_${p.end_date}_payroll.csv";
-  a.click(); URL.revokeObjectURL(url);
-}
-</script>
-</body></html>`;
-
-  const win = window.open("", "_blank");
-  win.document.write(html);
-  win.document.close();
-}
-
-function buildCSVRows(p, emp, t) {
-  const rows = [];
-  const r = (...c) => rows.push(c.map(x => `"${String(x ?? "").replace(/"/g, '""')}"`).join(","));
-  r("PAYROLL STATEMENT"); r(COMPANY.name); r(COMPANY.addr1); r(COMPANY.addr2); r(COMPANY.email); r("");
-  r("Employee", emp.name); r("Position", emp.position); r("Base Rate", `₱${(+emp.base_rate||1000).toLocaleString()}/day`);
-  r("Pay Period", `${p.start_date} to ${p.end_date}`); r("Pay Date", p.pay_date); r("");
-  r("=== EARNINGS (PHP) ==="); r("Description", "Amount");
-  r("Basic Salary", fmt(t.basic)); r("Overtime Pay", fmt(t.ot)); r("Commission", fmt(t.commission));
-  r("Holiday Pay", fmt(t.holiday)); r("Gas Allowance", fmt(t.gas)); r("TOTAL EARNINGS", fmt(t.earnings)); r("");
-  r("=== DEDUCTIONS (PHP) ===");
-  if (!(p.deductions || []).length) r("No deductions", "0.00");
-  else (p.deductions || []).forEach(d => r(d.label || "—", fmt(d.amount)));
-  r("TOTAL DEDUCTIONS", fmt(t.deductions)); r("NET PAY (PHP)", fmt(t.net)); r("");
-  r("=== DAILY BREAKDOWN ===");
-  r("Date","Location","Time In","Time Out","Type","Base Pay","OT","Brand","Sedan","MPV","Sunroof","Scrap","Tubes","Div","Commission","OT Pay","Holiday","Gas","Day Total","Notes");
-  (p.entries || []).forEach(e => {
+  const dailyR = aoa.length;
+  aoa.push([xSection("DAILY BREAKDOWN")]); pushMerge(merges, dailyR, 0, dailyR, 19);
+  const headers = ["Date", "Location", "Time In", "Time Out", "Type", "Base Pay", "OT", "Brand", "Sedan", "MPV", "Sunroof", "Scrap", "Tubes", "Div", "Commission", "OT Pay", "Holiday", "Gas", "Day Total", "Notes"];
+  aoa.push(headers.map(h => xHead(h)));
+  p.entries.forEach(e => {
     const c = calcEntry(e, emp.base_rate);
     const type = e.is_offset ? "Offset" : e.is_holiday ? "Holiday" : e.is_halfday ? "Half Day" : "Full";
-    r(e.date, e.location, to12h(e.time_in)||"—", to12h(e.time_out)||"—", type, fmt(c.base), formatOT(e.ot_hours, e.ot_minutes), (e.brand||"").toUpperCase(), e.sedan_qty, e.mpv_qty, e.sunroof_qty, e.scrapping_qty, e.tubes_qty, e.divide_by, fmt(c.commission), fmt(c.otPay), fmt(c.holiday), fmt(c.gas), fmt(c.total), e.notes||"");
+    aoa.push([
+      xText(e.date), xText(e.location), xText(to12h(e.time_in) || "—"), xText(to12h(e.time_out) || "—"), xText(type),
+      xNum(c.base), xText(formatOT(e.ot_hours, e.ot_minutes)), xText((e.brand || "").toUpperCase()),
+      xText(String(e.sedan_qty || 0)), xText(String(e.mpv_qty || 0)), xText(String(e.sunroof_qty || 0)), xText(String(e.scrapping_qty || 0)), xText(String(e.tubes_qty || 0)), xText(String(e.divide_by || 1)),
+      xNum(c.commission), xNum(c.otPay), xNum(c.holiday), xNum(c.gas), xNum(c.total), xText(e.notes || "")
+    ]);
   });
-  return rows;
+
+  const ws = XLSX.utils.aoa_to_sheet(aoa.map(row => row.map(cell => cell || xText(""))));
+  ws['!merges'] = merges;
+  ws['!cols'] = [{ wch: 12 }, { wch: 14 }, { wch: 10 }, { wch: 10 }, { wch: 9 }, { wch: 11 }, { wch: 7 }, { wch: 8 }, { wch: 7 }, { wch: 7 }, { wch: 8 }, { wch: 7 }, { wch: 7 }, { wch: 6 }, { wch: 13 }, { wch: 11 }, { wch: 11 }, { wch: 10 }, { wch: 13 }, { wch: 22 }];
+  ws['!rows'] = ws['!rows'] || [];
+  ws['!rows'][0] = { hpt: 28 };
+
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, "Payroll");
+  XLSX.writeFile(wb, `${emp.name.replace(/\s+/g, "_")}_${p.start_date}_to_${p.end_date}_payroll.xlsx`);
 }
+
 function exportSummaryCSV(bucket) {
-  const label = bucket === 7 ? "Weekly" : "Bi-Weekly";
-  let grandNet = 0, grandBasic = 0, grandOT = 0, grandCom = 0, grandHol = 0, grandGas = 0, grandEarnings = 0, grandDed = 0;
+  const aoa = []; const merges = [];
+  aoa.push([xTitle(`PAYROLL SUMMARY — ${bucket === 7 ? "WEEKLY" : "BIWEEKLY"}`)]); pushMerge(merges, 0, 0, 0, 13);
+  aoa.push([xText(COMPANY.name, { font: { bold: true, sz: 12 }, alignment: { horizontal: "center" } })]); pushMerge(merges, 1, 0, 1, 13);
+  aoa.push([xText(`Generated ${new Date().toLocaleString("en-PH")}`, { font: { sz: 10, color: { rgb: "555555" } }, alignment: { horizontal: "center" } })]); pushMerge(merges, 2, 0, 2, 13);
+  aoa.push([xText("")]);
 
-  const empBlocks = state.employees.map(emp => {
+  const headers = ["Employee", "Position", "Period Start", "Period End", "Pay Date", "Days", "Basic", "OT", "Commission", "Holiday", "Gas", "Total Earnings", "Deductions", "NET PAY"];
+  aoa.push(headers.map(h => xHead(h)));
+
+  let grand = 0;
+  state.employees.forEach(emp => {
     const my = state.periods.filter(p => p.employee_id === emp.id).sort((a, b) => a.start_date.localeCompare(b.start_date));
-    if (!my.length) return "";
-    let subNet = 0, subBasic = 0, subOT = 0, subCom = 0, subHol = 0, subGas = 0, subEarnings = 0, subDed = 0;
-    const rows = my.map(p => {
-      const t = calcPeriod(p);
-      subBasic += t.basic; subOT += t.ot; subCom += t.commission; subHol += t.holiday; subGas += t.gas;
-      subEarnings += t.earnings; subDed += t.deductions; subNet += t.net;
-      return `<tr>
-        <td>${emp.name}</td>
-        <td style="color:#6b7280;font-size:11px">${emp.position||''}</td>
-        <td>${p.start_date}</td>
-        <td>${p.end_date}</td>
-        <td>${p.pay_date}</td>
-        <td class="num">${p.entries.length}</td>
-        <td class="num money">₱${fmt(t.basic)}</td>
-        <td class="num">₱${fmt(t.ot)}</td>
-        <td class="num">₱${fmt(t.commission)}</td>
-        <td class="num">₱${fmt(t.holiday)}</td>
-        <td class="num">₱${fmt(t.gas)}</td>
-        <td class="num">₱${fmt(t.earnings)}</td>
-        <td class="num red">₱${fmt(t.deductions)}</td>
-        <td class="num money bold">₱${fmt(t.net)}</td>
-      </tr>`;
-    }).join("");
-    grandBasic += subBasic; grandOT += subOT; grandCom += subCom; grandHol += subHol; grandGas += subGas;
-    grandEarnings += subEarnings; grandDed += subDed; grandNet += subNet;
-    return rows + `<tr class="subtotal-row">
-      <td colspan="6">${emp.name} — Subtotal</td>
-      <td class="num">₱${fmt(subBasic)}</td>
-      <td class="num">₱${fmt(subOT)}</td>
-      <td class="num">₱${fmt(subCom)}</td>
-      <td class="num">₱${fmt(subHol)}</td>
-      <td class="num">₱${fmt(subGas)}</td>
-      <td class="num">₱${fmt(subEarnings)}</td>
-      <td class="num red">₱${fmt(subDed)}</td>
-      <td class="num bold">₱${fmt(subNet)}</td>
-    </tr>`;
-  }).join("");
-
-  const html = `<!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="UTF-8"/>
-<title>Payroll Summary — ${label}</title>
-<style>
-  @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=DM+Mono:wght@400;500&display=swap');
-  *{box-sizing:border-box;margin:0;padding:0}
-  body{font-family:'DM Sans',sans-serif;background:#f5f5f4;color:#111;padding:36px 24px;-webkit-print-color-adjust:exact;print-color-adjust:exact}
-  .page{max-width:1100px;margin:auto;background:#fff;border-radius:20px;overflow:hidden;box-shadow:0 8px 32px rgba(0,0,0,.10)}
-  .hdr{background:linear-gradient(135deg,#059669 0%,#0891b2 100%);color:#fff;padding:32px 36px 28px;position:relative;overflow:hidden}
-  .hdr::after{content:'';position:absolute;right:-40px;top:-40px;width:220px;height:220px;border-radius:50%;background:rgba(255,255,255,.07)}
-  .hdr-top{display:flex;align-items:flex-start;justify-content:space-between}
-  .company-name{font-size:18px;font-weight:700}
-  .company-sub{font-size:11px;opacity:.75;margin-top:3px}
-  .doc-label{font-size:10px;font-weight:700;letter-spacing:2px;text-transform:uppercase;opacity:.7;text-align:right}
-  .doc-title{font-size:24px;font-weight:700;letter-spacing:-1px;text-align:right;margin-top:2px}
-  .hdr-meta{display:flex;gap:24px;margin-top:20px;padding-top:18px;border-top:1px solid rgba(255,255,255,.22)}
-  .meta-item small{font-size:10px;font-weight:700;letter-spacing:1px;text-transform:uppercase;opacity:.65;display:block;margin-bottom:3px}
-  .meta-item strong{font-size:13px;font-weight:600}
-  .body{padding:28px 32px 40px}
-  .kpi-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:24px}
-  .kpi{border:1px solid #e5e7eb;border-radius:12px;padding:14px 16px}
-  .kpi small{font-size:10px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:#9ca3af;display:block;margin-bottom:5px}
-  .kpi strong{font-family:'DM Mono',monospace;font-size:17px;font-weight:700;color:#111;letter-spacing:-.5px}
-  .kpi.kpi-green{border-left:3px solid #059669}.kpi.kpi-blue{border-left:3px solid #0891b2}.kpi.kpi-amber{border-left:3px solid #d97706}.kpi.kpi-red{border-left:3px solid #dc2626}
-  .section-title{font-size:10px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:#9ca3af;margin-bottom:12px}
-  .tbl-wrap{border:1px solid #e5e7eb;border-radius:14px;overflow:hidden;overflow-x:auto}
-  table{width:100%;border-collapse:collapse;font-size:12px}
-  th{background:#f9fafb;padding:10px 10px;font-size:9px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:#6b7280;text-align:left;border-bottom:1px solid #e5e7eb;white-space:nowrap}
-  td{padding:9px 10px;border-bottom:1px solid #f3f4f6;color:#374151;vertical-align:middle;white-space:nowrap}
-  tr:last-child td{border-bottom:none}
-  tr:nth-child(even):not(.subtotal-row) td{background:#fafafa}
-  .subtotal-row td{background:#f0fdf4;font-weight:700;font-size:11.5px;border-top:1px solid #bbf7d0;border-bottom:2px solid #bbf7d0;color:#065f46}
-  .grand-row td{background:linear-gradient(135deg,#059669,#0891b2);color:#fff;font-weight:700;font-size:13px}
-  .num{text-align:right;font-family:'DM Mono',monospace}
-  .money{color:#059669}.red{color:#dc2626}.bold{font-weight:700}
-  .print-btn{display:flex;gap:10px;justify-content:flex-end;margin-bottom:20px}
-  .btn-print{font-family:'DM Sans',sans-serif;font-size:13px;font-weight:600;padding:9px 20px;border-radius:10px;border:none;cursor:pointer;background:linear-gradient(135deg,#059669,#0891b2);color:#fff}
-  .btn-dl{font-family:'DM Sans',sans-serif;font-size:13px;font-weight:600;padding:9px 20px;border-radius:10px;border:1px solid #e5e7eb;cursor:pointer;background:#f9fafb;color:#374151}
-  @media print{body{background:#fff;padding:0}.page{box-shadow:none;border-radius:0}.print-btn{display:none}}
-</style>
-</head>
-<body>
-<div class="print-btn">
-  <button class="btn-dl" onclick="downloadSummaryCSV()">⬇ Download CSV</button>
-  <button class="btn-print" onclick="window.print()">🖨 Print / Save PDF</button>
-</div>
-<div class="page">
-  <div class="hdr">
-    <div class="hdr-top">
-      <div>
-        <div class="company-name">${COMPANY.name}</div>
-        <div class="company-sub">${COMPANY.addr1}, ${COMPANY.addr2}</div>
-        <div class="company-sub">${COMPANY.email}</div>
-      </div>
-      <div>
-        <div class="doc-label">Summary Report</div>
-        <div class="doc-title">${label} Payroll</div>
-      </div>
-    </div>
-    <div class="hdr-meta">
-      <div class="meta-item"><small>Generated</small><strong>${new Date().toLocaleString('en-PH')}</strong></div>
-      <div class="meta-item"><small>Employees</small><strong>${state.employees.length}</strong></div>
-      <div class="meta-item"><small>Total Periods</small><strong>${state.periods.length}</strong></div>
-    </div>
-  </div>
-  <div class="body">
-    <div class="kpi-grid" style="margin-bottom:24px">
-      <div class="kpi kpi-green"><small>Grand Net Pay</small><strong>₱${fmt(grandNet)}</strong></div>
-      <div class="kpi kpi-blue"><small>Total Earnings</small><strong>₱${fmt(grandEarnings)}</strong></div>
-      <div class="kpi kpi-amber"><small>Total Commission</small><strong>₱${fmt(grandCom)}</strong></div>
-      <div class="kpi kpi-red"><small>Total Deductions</small><strong>₱${fmt(grandDed)}</strong></div>
-    </div>
-    <div class="section-title">Pay Period Breakdown</div>
-    <div class="tbl-wrap">
-      <table>
-        <thead>
-          <tr>
-            <th>Employee</th><th>Position</th><th>Period Start</th><th>Period End</th><th>Pay Date</th><th>Days</th>
-            <th>Basic</th><th>OT</th><th>Commission</th><th>Holiday</th><th>Gas</th>
-            <th>Earnings</th><th>Deductions</th><th>Net Pay</th>
-          </tr>
-        </thead>
-        <tbody>
-          ${empBlocks}
-          <tr class="grand-row">
-            <td colspan="6">GRAND TOTAL</td>
-            <td class="num">₱${fmt(grandBasic)}</td>
-            <td class="num">₱${fmt(grandOT)}</td>
-            <td class="num">₱${fmt(grandCom)}</td>
-            <td class="num">₱${fmt(grandHol)}</td>
-            <td class="num">₱${fmt(grandGas)}</td>
-            <td class="num">₱${fmt(grandEarnings)}</td>
-            <td class="num">₱${fmt(grandDed)}</td>
-            <td class="num bold">₱${fmt(grandNet)}</td>
-          </tr>
-        </tbody>
-      </table>
-    </div>
-    <div style="margin-top:24px;text-align:center;font-size:11px;color:#9ca3af">
-      Generated ${new Date().toLocaleString('en-PH')} · Techtune Payroll System
-    </div>
-  </div>
-</div>
-<script>
-function downloadSummaryCSV() {
-  const rows = [];
-  const r = (...c) => rows.push(c.map(x => '"' + String(x ?? "").replace(/"/g, '""') + '"').join(","));
-  r("PAYROLL SUMMARY — ${label.toUpperCase()}"); r("${COMPANY.name}"); r("Generated", "${new Date().toLocaleString('en-PH')}"); r("");
-  r("Employee","Position","Period Start","Period End","Pay Date","Days","Basic","OT","Commission","Holiday","Gas","Total Earnings","Deductions","NET PAY");
-  ${JSON.stringify(state.employees.map(emp => {
-    const my = state.periods.filter(p => p.employee_id === emp.id).sort((a,b) => a.start_date.localeCompare(b.start_date));
-    return { emp, my };
-  }))}.forEach(({emp, my}) => {
     if (!my.length) return;
+    let sub = 0;
     my.forEach(p => {
-      // rows already embedded via server-side
+      const t = calcPeriod(p);
+      aoa.push([
+        xText(emp.name), xText(emp.position), xText(p.start_date), xText(p.end_date), xText(p.pay_date),
+        xText(String(p.entries.length)),
+        xNum(t.basic), xNum(t.ot), xNum(t.commission), xNum(t.holiday), xNum(t.gas), xNum(t.earnings), xNum(t.deductions), xNum(t.net)
+      ]);
+      sub += t.net;
     });
+    aoa.push([xTotal(`${emp.name} SUBTOTAL`), xTotal(""), xTotal(""), xTotal(""), xTotal(""), xTotal(""), xTotal(""), xTotal(""), xTotal(""), xTotal(""), xTotal(""), xTotal(""), xTotal(""), xTotalNum(sub)]);
+    aoa.push([xText("")]);
+    grand += sub;
   });
-  // Simpler: just download the visible table rows
-  const tbl = document.querySelector('table');
-  if (!tbl) return;
-  const csvRows = [...tbl.querySelectorAll('tr')].map(tr =>
-    [...tr.querySelectorAll('th,td')].map(td => '"' + td.innerText.replace(/"/g,'""') + '"').join(',')
-  );
-  const blob = new Blob(["\uFEFF" + csvRows.join("\\n")], { type: "text/csv;charset=utf-8" });
-  const a = document.createElement("a"); a.href = URL.createObjectURL(blob);
-  a.download = "payroll_summary_${bucket === 7 ? 'weekly' : 'biweekly'}_${new Date().toISOString().slice(0,10)}.csv";
-  a.click();
-}
-</script>
-</body></html>`;
+  aoa.push([
+    { v: "GRAND TOTAL", t: "s", s: { font: { name: "Calibri", sz: 13, bold: true, color: { rgb: "FFFFFF" } }, fill: { fgColor: { rgb: "111111" } }, alignment: { horizontal: "left", vertical: "center" }, border: XLS_BORDERS } },
+    ...Array(12).fill({ v: "", t: "s", s: { fill: { fgColor: { rgb: "111111" } }, border: XLS_BORDERS } }),
+    { v: Number(grand || 0), t: "n", s: { font: { name: "Calibri", sz: 13, bold: true, color: { rgb: "FFFFFF" } }, fill: { fgColor: { rgb: "111111" } }, alignment: { horizontal: "right", vertical: "center" }, numFmt: '"PHP "#,##0.00', border: XLS_BORDERS } }
+  ]);
 
-  const win = window.open("", "_blank");
-  win.document.write(html);
-  win.document.close();
-}
-function downloadCSV(content, name) {
-  const blob = new Blob(["\uFEFF" + content], { type: "text/csv;charset=utf-8" });
-  const url = URL.createObjectURL(blob); const a = document.createElement("a"); a.href = url; a.download = name; a.click(); URL.revokeObjectURL(url);
+  const ws = XLSX.utils.aoa_to_sheet(aoa.map(row => row.map(cell => cell || xText(""))));
+  ws['!merges'] = merges;
+  ws['!cols'] = [{ wch: 22 }, { wch: 22 }, { wch: 12 }, { wch: 12 }, { wch: 12 }, { wch: 7 }, { wch: 11 }, { wch: 11 }, { wch: 12 }, { wch: 11 }, { wch: 11 }, { wch: 14 }, { wch: 12 }, { wch: 14 }];
+  ws['!rows'] = [{ hpt: 28 }];
+
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, "Summary");
+  XLSX.writeFile(wb, `payroll_summary_${bucket === 7 ? "weekly" : "biweekly"}_${new Date().toISOString().slice(0, 10)}.xlsx`);
 }
 
-// =============== PDF ===============
+// =============== PDF (Monochrome • Landscape • Formal) ===============
 function exportPDF(pid) {
   const p = state.periods.find(x => x.id === pid);
   const emp = state.employees.find(e => e.id === p.employee_id);
   const t = calcPeriod(p);
   const { jsPDF } = window.jspdf;
-  const doc = new jsPDF({ unit: "pt", format: "a4" });
+  const doc = new jsPDF({ unit: "pt", format: "a4", orientation: "landscape" });
   const pageW = doc.internal.pageSize.getWidth();
-  const margin = 36; let y = margin;
+  const pageH = doc.internal.pageSize.getHeight();
+  const margin = 40; let y = margin;
 
-  doc.setFont("helvetica", "bold"); doc.setFontSize(16); doc.text("PAYROLL STATEMENT", pageW / 2, y, { align: "center" }); y += 18;
-  doc.setFontSize(11); doc.text(COMPANY.name, pageW / 2, y, { align: "center" }); y += 13;
-  doc.setFont("helvetica", "normal"); doc.setFontSize(9); doc.setTextColor(90);
-  doc.text(COMPANY.addr1, pageW / 2, y, { align: "center" }); y += 11;
-  doc.text(COMPANY.addr2, pageW / 2, y, { align: "center" }); y += 11;
-  doc.text(COMPANY.email, pageW / 2, y, { align: "center" }); y += 14;
-  doc.setTextColor(0); doc.line(margin, y, pageW - margin, y); y += 14;
+  // Letterhead
+  doc.setDrawColor(0); doc.setLineWidth(1.4);
+  doc.line(margin, y, pageW - margin, y); y += 18;
+  doc.setFont("times", "bold"); doc.setFontSize(18); doc.setTextColor(0);
+  doc.text("PAYROLL STATEMENT", pageW / 2, y, { align: "center" }); y += 18;
+  doc.setFont("times", "normal"); doc.setFontSize(11);
+  doc.text(COMPANY.name, pageW / 2, y, { align: "center" }); y += 13;
+  doc.setFontSize(9); doc.setTextColor(80);
+  doc.text(`${COMPANY.addr1}  •  ${COMPANY.addr2}  •  ${COMPANY.email}`, pageW / 2, y, { align: "center" }); y += 10;
+  doc.setTextColor(0); doc.setLineWidth(0.6);
+  doc.line(margin, y, pageW - margin, y); y += 16;
 
+  // Info table
   doc.autoTable({
-    startY: y, margin: { left: margin, right: margin }, theme: "plain", styles: { fontSize: 9, cellPadding: 3 },
+    startY: y, margin: { left: margin, right: margin }, theme: "grid",
+    styles: { font: "helvetica", fontSize: 9, cellPadding: 5, lineColor: [180, 180, 180], lineWidth: 0.4, textColor: 20 },
     body: [
-      [{ content: "Employee:", styles: { fontStyle: "bold" } }, emp.name, { content: "Pay Period:", styles: { fontStyle: "bold" } }, `${p.start_date} to ${p.end_date}`],
-      [{ content: "Position:", styles: { fontStyle: "bold" } }, emp.position, { content: "Pay Date:", styles: { fontStyle: "bold" } }, p.pay_date],
-      [{ content: "Base Rate:", styles: { fontStyle: "bold" } }, `PHP ${(+emp.base_rate||1000).toLocaleString()}/day`, { content: "Days Worked:", styles: { fontStyle: "bold" } }, String(p.entries.length)],
+      [{ content: "Employee", styles: { fontStyle: "bold", fillColor: [240, 240, 240] } }, emp.name,
+       { content: "Pay Period", styles: { fontStyle: "bold", fillColor: [240, 240, 240] } }, `${p.start_date} to ${p.end_date}`],
+      [{ content: "Position", styles: { fontStyle: "bold", fillColor: [240, 240, 240] } }, emp.position,
+       { content: "Pay Date", styles: { fontStyle: "bold", fillColor: [240, 240, 240] } }, p.pay_date],
+      [{ content: "Base Rate", styles: { fontStyle: "bold", fillColor: [240, 240, 240] } }, `PHP ${(+emp.base_rate || 1000).toLocaleString()}/day`,
+       { content: "Days Worked", styles: { fontStyle: "bold", fillColor: [240, 240, 240] } }, String(p.entries.length)],
     ],
-    columnStyles: { 0: { cellWidth: 70 }, 1: { cellWidth: 170 }, 2: { cellWidth: 70 }, 3: { cellWidth: "auto" } }
+    columnStyles: { 0: { cellWidth: 90 }, 1: { cellWidth: 260 }, 2: { cellWidth: 90 }, 3: { cellWidth: "auto" } }
   });
   y = doc.lastAutoTable.finalY + 14;
 
-  const halfW = (pageW - margin * 2 - 12) / 2;
+  // Earnings & Deductions side-by-side
+  const halfW = (pageW - margin * 2 - 16) / 2;
   doc.autoTable({
-    startY: y, margin: { left: margin }, tableWidth: halfW,
+    startY: y, margin: { left: margin }, tableWidth: halfW, theme: "grid",
     head: [["EARNINGS", "Amount (PHP)"]],
     body: [["Basic Salary", fmt(t.basic)], ["Overtime Pay", fmt(t.ot)], ["Commission", fmt(t.commission)], ["Holiday Pay", fmt(t.holiday)], ["Gas Allowance", fmt(t.gas)],
-    [{ content: "TOTAL EARNINGS", styles: { fontStyle: "bold" } }, { content: fmt(t.earnings), styles: { fontStyle: "bold" } }]],
-    headStyles: { fillColor: [33, 33, 33], textColor: 255, halign: "left" }, styles: { fontSize: 9, cellPadding: 4 }, columnStyles: { 1: { halign: "right" } }
+      [{ content: "TOTAL EARNINGS", styles: { fontStyle: "bold", fillColor: [230, 230, 230] } }, { content: fmt(t.earnings), styles: { fontStyle: "bold", fillColor: [230, 230, 230], halign: "right" } }]],
+    headStyles: { fillColor: [30, 30, 30], textColor: 255, halign: "left", fontStyle: "bold" },
+    styles: { font: "helvetica", fontSize: 9, cellPadding: 5, lineColor: [180, 180, 180], lineWidth: 0.4, textColor: 20 },
+    columnStyles: { 1: { halign: "right" } }
   });
   const eY = doc.lastAutoTable.finalY;
 
-  const dedBody = (p.deductions || []).length ? p.deductions.map(d => [d.label || "—", fmt(d.amount)]) : [[{ content: "No deductions", colSpan: 2, styles: { textColor: 130, halign: "center" } }]];
-  dedBody.push([{ content: "TOTAL DEDUCTIONS", styles: { fontStyle: "bold" } }, { content: fmt(t.deductions), styles: { fontStyle: "bold" } }]);
+  const dedBody = (p.deductions || []).length ? p.deductions.map(d => [d.label || "—", fmt(d.amount)]) : [[{ content: "No deductions", colSpan: 2, styles: { textColor: 130, halign: "center", fontStyle: "italic" } }]];
+  dedBody.push([{ content: "TOTAL DEDUCTIONS", styles: { fontStyle: "bold", fillColor: [230, 230, 230] } }, { content: fmt(t.deductions), styles: { fontStyle: "bold", fillColor: [230, 230, 230], halign: "right" } }]);
   doc.autoTable({
-    startY: y, margin: { left: margin + halfW + 12 }, tableWidth: halfW,
+    startY: y, margin: { left: margin + halfW + 16 }, tableWidth: halfW, theme: "grid",
     head: [["DEDUCTIONS", "Amount (PHP)"]], body: dedBody,
-    headStyles: { fillColor: [33, 33, 33], textColor: 255, halign: "left" }, styles: { fontSize: 9, cellPadding: 4 }, columnStyles: { 1: { halign: "right" } }
+    headStyles: { fillColor: [30, 30, 30], textColor: 255, halign: "left", fontStyle: "bold" },
+    styles: { font: "helvetica", fontSize: 9, cellPadding: 5, lineColor: [180, 180, 180], lineWidth: 0.4, textColor: 20 },
+    columnStyles: { 1: { halign: "right" } }
   });
   y = Math.max(eY, doc.lastAutoTable.finalY) + 14;
 
-  doc.setFillColor(33, 33, 33); doc.rect(margin, y, pageW - margin * 2, 28, "F");
+  // Net pay band
+  doc.setFillColor(20, 20, 20); doc.rect(margin, y, pageW - margin * 2, 32, "F");
   doc.setTextColor(255); doc.setFont("helvetica", "bold"); doc.setFontSize(13);
-  doc.text("NET PAY", margin + 12, y + 18);
-  doc.text(`PHP ${fmt(t.net)}`, pageW - margin - 12, y + 18, { align: "right" });
-  doc.setTextColor(0); y += 42;
+  doc.text("NET PAY", margin + 14, y + 21);
+  doc.setFontSize(14);
+  doc.text(`PHP ${fmt(t.net)}`, pageW - margin - 14, y + 21, { align: "right" });
+  doc.setTextColor(0); y += 46;
 
+  // Daily breakdown — landscape gives us more width
   doc.autoTable({
-    startY: y, margin: { left: margin, right: margin },
-    head: [["Date", "Loc", "In", "Out", "Type", "Brand", "Sed", "MPV", "Sun", "Scr", "Tub", "Div", "Commission", "OT Pay", "Total"]],
+    startY: y, margin: { left: margin, right: margin }, theme: "grid",
+    head: [["Date", "Location", "Time In", "Time Out", "Type", "Brand", "Sed", "MPV", "Sun", "Scr", "Tub", "Div", "Commission", "OT Pay", "Holiday", "Gas", "Day Total"]],
     body: p.entries.map(e => {
       const c = calcEntry(e, emp.base_rate);
       const type = e.is_offset ? "OFFSET" : e.is_holiday ? "HOLIDAY" : e.is_halfday ? "HALF" : "FULL";
       return [e.date, e.location || "—", to12h(e.time_in) || "—", to12h(e.time_out) || "—", type, (e.brand || "").toUpperCase(),
-        e.sedan_qty || "—", e.mpv_qty || "—", e.sunroof_qty || "—", e.scrapping_qty || "—", e.tubes_qty || "—", e.divide_by, fmt(c.commission), fmt(c.otPay), fmt(c.total)];
+        e.sedan_qty || "—", e.mpv_qty || "—", e.sunroof_qty || "—", e.scrapping_qty || "—", e.tubes_qty || "—", e.divide_by,
+        fmt(c.commission), fmt(c.otPay), fmt(c.holiday), fmt(c.gas), fmt(c.total)];
     }),
-    headStyles: { fillColor: [33, 33, 33], textColor: 255, fontSize: 7.5 }, styles: { fontSize: 7.5, cellPadding: 3, overflow: "linebreak" },
+    headStyles: { fillColor: [30, 30, 30], textColor: 255, fontSize: 8, fontStyle: "bold", halign: "center" },
+    styles: { font: "helvetica", fontSize: 8, cellPadding: 4, lineColor: [180, 180, 180], lineWidth: 0.3, textColor: 20, overflow: "linebreak" },
+    alternateRowStyles: { fillColor: [248, 248, 248] },
     columnStyles: {
-      0: { cellWidth: 48 }, 1: { cellWidth: 48 }, 2: { cellWidth: 42 }, 3: { cellWidth: 42 }, 4: { cellWidth: 36 }, 5: { cellWidth: 34 },
-      6: { cellWidth: 22, halign: "center" }, 7: { cellWidth: 22, halign: "center" }, 8: { cellWidth: 22, halign: "center" }, 9: { cellWidth: 22, halign: "center" }, 10: { cellWidth: 22, halign: "center" }, 11: { cellWidth: 22, halign: "center" },
-      12: { cellWidth: 60, halign: "right" }, 13: { cellWidth: 46, halign: "right" }, 14: { cellWidth: 56, halign: "right", fontStyle: "bold" }
+      0: { cellWidth: 60 }, 1: { cellWidth: 70 }, 2: { cellWidth: 50 }, 3: { cellWidth: 50 }, 4: { cellWidth: 46 }, 5: { cellWidth: 46 },
+      6: { cellWidth: 30, halign: "center" }, 7: { cellWidth: 30, halign: "center" }, 8: { cellWidth: 30, halign: "center" }, 9: { cellWidth: 30, halign: "center" }, 10: { cellWidth: 30, halign: "center" }, 11: { cellWidth: 28, halign: "center" },
+      12: { cellWidth: 70, halign: "right" }, 13: { cellWidth: 60, halign: "right" }, 14: { cellWidth: 56, halign: "right" }, 15: { cellWidth: 50, halign: "right" }, 16: { cellWidth: 64, halign: "right", fontStyle: "bold" }
     },
-    didDrawPage: () => { doc.setFontSize(8); doc.setTextColor(130); doc.text(`Generated • ${new Date().toLocaleString("en-PH")}`, pageW / 2, doc.internal.pageSize.getHeight() - 18, { align: "center" }); doc.setTextColor(0); }
+    didDrawPage: () => {
+      doc.setFontSize(8); doc.setTextColor(110); doc.setFont("helvetica", "normal");
+      doc.text(`${COMPANY.name} — Confidential Payroll Document`, margin, pageH - 18);
+      doc.text(`Generated ${new Date().toLocaleString("en-PH")}  •  Page ${doc.internal.getNumberOfPages()}`, pageW - margin, pageH - 18, { align: "right" });
+      doc.setTextColor(0);
+    }
   });
 
   doc.save(`${emp.name.replace(/\s+/g, "_")}_${p.start_date}_to_${p.end_date}_payslip.pdf`);
