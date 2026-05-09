@@ -36,21 +36,37 @@ const otRateFromBase = b => round2((b || 1000) / 6.4);
 // =============== CALC ===============
 function calcEntryBase(e, baseRate) {
   if (e.is_offset) return OFFSET_AMT;
-  // Holiday no longer zeroes the base — employees still get paid their daily rate
-  // when they go onsite on a holiday. Holiday Pay is added separately on top.
+  // holiday_type "offsite" = employee didn't come in; only holiday bonus applies, no base pay
+  const holidayType = e.holiday_type || (e.is_holiday ? "onsite" : "none");
+  if (holidayType === "offsite") return 0;
   const br = baseRate || 1000;
   return e.is_halfday ? round2(br / 2) : br;
 }
+function safeDiv(n) { return n > 0 ? n : 1; }
 function calcEntry(e, baseRate) {
   const cr = COMMISSION_RATES;
   const r = e.brand === "byd" ? cr.byd : e.brand === "geely" ? cr.geely : cr.other;
-  const raw = (e.sedan_qty || 0) * r.sedan + (e.mpv_qty || 0) * r.mpv + (e.sunroof_qty || 0) * r.sunroof
-            + (e.scrapping_qty || 0) * (e.scrapping_rate || 0) + (e.tubes_qty || 0) * TUBE_RATE;
-  const div = (e.divide_by || 1) > 0 ? (e.divide_by || 1) : 1;
-  const commission = round2(raw / div);
+  // Per-field divide: each field can have its own divisor (2, 3, 4…)
+  // Falls back to the legacy global divide_by if the per-field key is missing
+  const globalDiv = safeDiv(e.divide_by || 1);
+  const sedanDiv   = safeDiv(e.sedan_div   || globalDiv);
+  const mpvDiv     = safeDiv(e.mpv_div     || globalDiv);
+  const sunroofDiv = safeDiv(e.sunroof_div || globalDiv);
+  const scrapDiv   = safeDiv(e.scrap_div   || globalDiv);
+  const tubesDiv   = safeDiv(e.tubes_div   || globalDiv);
+
+  const commission = round2(
+    (e.sedan_qty   || 0) * r.sedan   / sedanDiv +
+    (e.mpv_qty     || 0) * r.mpv     / mpvDiv +
+    (e.sunroof_qty || 0) * r.sunroof / sunroofDiv +
+    (e.scrapping_qty || 0) * (e.scrapping_rate || 0) / scrapDiv +
+    (e.tubes_qty   || 0) * TUBE_RATE / tubesDiv
+  );
   const otHrs = (+e.ot_hours || 0) + (+e.ot_minutes || 0) / 60;
   const otPay = round2(otHrs * (+e.ot_rate || otRateFromBase(baseRate)));
-  const holiday = e.is_holiday ? HOLIDAY_AMT : 0;
+  // holiday_type: "onsite" = full pay + bonus, "offsite" = bonus only (no base, no commission)
+  const holidayType = e.holiday_type || (e.is_holiday ? "onsite" : "none");
+  const holiday = (holidayType === "onsite" || holidayType === "offsite") ? HOLIDAY_AMT : 0;
   const base = calcEntryBase(e, baseRate);
   const gas = +e.gas_allowance || 0;
   return { base, commission, otPay, holiday, gas, total: round2(base + commission + otPay + holiday + gas) };
@@ -401,7 +417,10 @@ async function addEntry(pid) {
     pay_period_id: pid, date: new Date().toISOString().slice(0, 10), location: "Calamba",
     time_in: "08:00", time_out: "17:00", ot_hours: 0, ot_minutes: 0, ot_rate: otRateFromBase(emp.base_rate),
     brand: "geely", sedan_qty: 0, mpv_qty: 0, sunroof_qty: 0, scrapping_qty: 0, scrapping_rate: 0,
-    tubes_qty: 0, divide_by: 1, gas_allowance: 0, is_holiday: false, is_offset: false, is_halfday: false, notes: ""
+    tubes_qty: 0, divide_by: 1,
+    sedan_div: 1, mpv_div: 1, sunroof_div: 1, scrap_div: 1, tubes_div: 1,
+    gas_allowance: 0, is_holiday: false, is_offset: false, is_halfday: false,
+    holiday_type: "none", notes: ""
   };
   const { data, error } = await sb.from('entries').insert(newEntry).select().single();
   if (error) return toast("Add entry failed: " + error.message);
@@ -423,14 +442,16 @@ async function delEntry(pid, eid) {
   editPeriod(pid);
 }
 
-const NUMERIC_KEYS = ["sedan_qty","mpv_qty","sunroof_qty","scrapping_qty","scrapping_rate","tubes_qty","divide_by","ot_hours","ot_minutes","gas_allowance","ot_rate"];
+const NUMERIC_KEYS = ["sedan_qty","mpv_qty","sunroof_qty","scrapping_qty","scrapping_rate","tubes_qty","divide_by","sedan_div","mpv_div","sunroof_div","scrap_div","tubes_div","ot_hours","ot_minutes","gas_allowance","ot_rate"];
 const BOOL_KEYS = ["is_holiday","is_offset","is_halfday"];
+const STRING_KEYS = ["holiday_type"];
 
 async function updateEntry(pid, eid, key, val) {
   const p = state.periods.find(x => x.id === pid);
   const e = p.entries.find(x => x.id === eid);
   if (NUMERIC_KEYS.includes(key)) val = +val || 0;
   if (BOOL_KEYS.includes(key)) val = !!val;
+  // STRING_KEYS stored as-is
   e[key] = val;
   const { error } = await sb.from('entries').update({ [key]: val }).eq('id', eid);
   if (error) toast("Save failed: " + error.message);
@@ -463,13 +484,36 @@ function renderEntries(pid) {
   const wrap = document.getElementById("entries-" + pid);
   wrap.innerHTML = p.entries.map(e => {
     const c = calcEntry(e, baseRate);
-    const baseLabel = e.is_offset ? `Offset day` : e.is_holiday ? (e.is_halfday ? `Holiday · Half day · ₱${(baseRate/2).toLocaleString()}` : `Holiday onsite · ₱${baseRate.toLocaleString()}`) : e.is_halfday ? `Half day · ₱${(baseRate/2).toLocaleString()}` : `Full day · ₱${baseRate.toLocaleString()}`;
-    return `<div class="entry" id="entry-${e.id}">
+    const holidayType = e.holiday_type || (e.is_holiday ? "onsite" : "none");
+    const isOffsite = holidayType === "offsite";
+    const baseLabel = e.is_offset ? `Offset day`
+      : holidayType === "offsite" ? `Holiday Offsite · ₱0 base (holiday bonus only)`
+      : holidayType === "onsite"  ? (e.is_halfday ? `Holiday Onsite · Half day · ₱${(baseRate/2).toLocaleString()}` : `Holiday Onsite · ₱${baseRate.toLocaleString()}`)
+      : e.is_halfday ? `Half day · ₱${(baseRate/2).toLocaleString()}` : `Full day · ₱${baseRate.toLocaleString()}`;
+
+    // Per-field divide helpers
+    const divSel = (field, val) => `<select style="width:80px;font-size:12px" onchange="updateEntry('${pid}','${e.id}','${field}',this.value)" title="Divide by (# of workers)">
+      <option value="1" ${(val||1)===1?"selected":""}>÷1</option>
+      <option value="2" ${(val||1)===2?"selected":""}>÷2</option>
+      <option value="3" ${(val||1)===3?"selected":""}>÷3</option>
+      <option value="4" ${(val||1)===4?"selected":""}>÷4</option>
+    </select>`;
+
+    // Brand rate hint
+    const cr = COMMISSION_RATES;
+    const r = e.brand === "byd" ? cr.byd : e.brand === "geely" ? cr.geely : cr.other;
+    const brandHint = `<span class="brand-rate-hint" style="font-size:11px;color:var(--text-dim);display:inline-flex;gap:6px;align-items:center;flex-wrap:wrap">
+      <span>Sedan ₱${r.sedan}</span><span>MPV ₱${r.mpv}</span><span>Sunroof ₱${r.sunroof}</span>
+    </span>`;
+
+    const offOpacity = isOffsite ? "opacity:.38;pointer-events:none;user-select:none" : "";
+
+    return `<div class="entry${isOffsite ? ' entry-offsite' : ''}" id="entry-${e.id}">
       <div class="entry-grid">
         <label>Date<input type="date" value="${e.date}" onchange="updateEntry('${pid}','${e.id}','date',this.value)"></label>
         <label>Location<select onchange="updateEntry('${pid}','${e.id}','location',this.value)">${LOCATIONS.map(l => `<option ${l === e.location ? "selected" : ""}>${l}</option>`).join("")}</select></label>
-        <label>Time In<input type="time" value="${e.time_in || ''}" onchange="updateEntry('${pid}','${e.id}','time_in',this.value)"></label>
-        <label>Time Out<input type="time" value="${e.time_out || ''}" onchange="updateEntry('${pid}','${e.id}','time_out',this.value)"></label>
+        <label style="${isOffsite?offOpacity:''}">Time In<input type="time" value="${e.time_in || ''}" ${isOffsite?"disabled":""} onchange="updateEntry('${pid}','${e.id}','time_in',this.value)"></label>
+        <label style="${isOffsite?offOpacity:''}">Time Out<input type="time" value="${e.time_out || ''}" ${isOffsite?"disabled":""} onchange="updateEntry('${pid}','${e.id}','time_out',this.value)"></label>
       </div>
       <div class="base-info-row">
         <span class="base-info-label"><i data-lucide="wallet"></i> ${baseLabel}</span>
@@ -477,16 +521,19 @@ function renderEntries(pid) {
       </div>
       <div class="entry-section">
         <h4>Day Type</h4>
-        <div class="entry-grid">
-          <label class="toggle-check tone-amber ${e.is_halfday ? "is-checked" : ""}">
-            <input type="checkbox" ${e.is_halfday ? "checked" : ""} onchange="updateEntry('${pid}','${e.id}','is_halfday',this.checked);this.closest('.toggle-check').classList.toggle('is-checked',this.checked)">
+        <div class="entry-grid" style="align-items:end">
+          <label class="toggle-check tone-amber ${e.is_halfday && !isOffsite ? 'is-checked' : ''}" style="${isOffsite?offOpacity:''}">
+            <input type="checkbox" ${e.is_halfday ? "checked" : ""} ${isOffsite?"disabled":""} onchange="updateEntry('${pid}','${e.id}','is_halfday',this.checked);this.closest('.toggle-check').classList.toggle('is-checked',this.checked)">
             <span class="toggle-box"><svg viewBox="0 0 14 12" fill="none"><polyline points="2,6.5 5.5,10 12,2.5" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
             Half Day (½ base rate)
           </label>
-          <label class="toggle-check tone-purple ${e.is_holiday ? "is-checked" : ""}">
-            <input type="checkbox" ${e.is_holiday ? "checked" : ""} onchange="updateEntry('${pid}','${e.id}','is_holiday',this.checked);this.closest('.toggle-check').classList.toggle('is-checked',this.checked)">
-            <span class="toggle-box"><svg viewBox="0 0 14 12" fill="none"><polyline points="2,6.5 5.5,10 12,2.5" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
-            Holiday Pay (+₱1,000 bonus)
+          <label style="flex-direction:column;gap:4px">
+            <span style="font-size:10px;font-weight:700;letter-spacing:.8px;text-transform:uppercase;color:var(--text-dim)">Holiday Pay</span>
+            <select onchange="onHolidayTypeChange('${pid}','${e.id}',this.value)" style="${holidayType==='offsite'?'border-color:var(--purple);background:var(--purple-bg);color:var(--purple)':holidayType==='onsite'?'border-color:var(--green);background:var(--green-bg);color:var(--green)':''}">
+              <option value="none"    ${holidayType==="none"    ?"selected":""}>None</option>
+              <option value="onsite"  ${holidayType==="onsite"  ?"selected":""}>Holiday Onsite (+₱1,000)</option>
+              <option value="offsite" ${holidayType==="offsite" ?"selected":""}>Holiday Offsite (+₱1,000, no work)</option>
+            </select>
           </label>
           <label class="toggle-check tone-blue ${e.is_offset ? "is-checked" : ""}">
             <input type="checkbox" ${e.is_offset ? "checked" : ""} onchange="updateEntry('${pid}','${e.id}','is_offset',this.checked);this.closest('.toggle-check').classList.toggle('is-checked',this.checked)">
@@ -495,29 +542,50 @@ function renderEntries(pid) {
           </label>
         </div>
       </div>
-      <div class="entry-section">
+      <div class="entry-section" style="${isOffsite?offOpacity:''}">
         <h4>Overtime</h4>
         <div class="entry-grid">
-          <label>OT Hrs<input type="number" min="0" value="${e.ot_hours||0}" onchange="updateEntry('${pid}','${e.id}','ot_hours',this.value)"></label>
-          <label>OT Min<input type="number" min="0" max="59" value="${e.ot_minutes||0}" onchange="updateEntry('${pid}','${e.id}','ot_minutes',this.value)"></label>
-          <label>OT Rate (₱/hr)<input type="number" min="0" step="0.01" value="${e.ot_rate || otRateFromBase(baseRate)}" onchange="updateEntry('${pid}','${e.id}','ot_rate',this.value)"></label>
+          <label>OT Hrs<input type="number" min="0" value="${e.ot_hours||0}" ${isOffsite?"disabled":""} onchange="updateEntry('${pid}','${e.id}','ot_hours',this.value)"></label>
+          <label>OT Min<input type="number" min="0" max="59" value="${e.ot_minutes||0}" ${isOffsite?"disabled":""} onchange="updateEntry('${pid}','${e.id}','ot_minutes',this.value)"></label>
+          <label>OT Rate (₱/hr)<input type="number" min="0" step="0.01" value="${e.ot_rate || otRateFromBase(baseRate)}" ${isOffsite?"disabled":""} onchange="updateEntry('${pid}','${e.id}','ot_rate',this.value)"></label>
         </div>
       </div>
-      <div class="entry-section">
+      <div class="entry-section" style="${isOffsite?offOpacity:''}">
         <h4>Commission</h4>
-        <div class="entry-grid">
-          <label>Brand<select onchange="updateEntry('${pid}','${e.id}','brand',this.value)">
-            <option value="byd" ${e.brand === "byd" ? "selected" : ""}>BYD</option>
-            <option value="geely" ${e.brand === "geely" ? "selected" : ""}>Geely</option>
-            <option value="other" ${e.brand === "other" ? "selected" : ""}>Other</option>
-          </select></label>
-          <label>Sedan/CUV Qty<input type="number" min="0" value="${e.sedan_qty||0}" onchange="updateEntry('${pid}','${e.id}','sedan_qty',this.value)"></label>
-          <label>MPV Qty<input type="number" min="0" value="${e.mpv_qty||0}" onchange="updateEntry('${pid}','${e.id}','mpv_qty',this.value)"></label>
-          <label>Sunroof Qty<input type="number" min="0" value="${e.sunroof_qty||0}" onchange="updateEntry('${pid}','${e.id}','sunroof_qty',this.value)"></label>
-          <label>Scrap Qty<input type="number" min="0" value="${e.scrapping_qty||0}" onchange="updateEntry('${pid}','${e.id}','scrapping_qty',this.value)"></label>
-          <label>Scrap Rate<input type="number" min="0" value="${e.scrapping_rate||0}" onchange="updateEntry('${pid}','${e.id}','scrapping_rate',this.value)"></label>
-          <label>Tubes Qty (₱50 ea)<input type="number" min="0" value="${e.tubes_qty||0}" onchange="updateEntry('${pid}','${e.id}','tubes_qty',this.value)"></label>
-          <label>Divide By<input type="number" min="1" value="${e.divide_by||1}" onchange="updateEntry('${pid}','${e.id}','divide_by',this.value)"></label>
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;flex-wrap:wrap">
+          <label style="margin:0;flex-direction:row;align-items:center;gap:8px;font-size:10px;font-weight:700;letter-spacing:.8px;text-transform:uppercase;color:var(--text-dim)">Brand
+            <select onchange="updateEntry('${pid}','${e.id}','brand',this.value);renderEntries('${pid}')" ${isOffsite?"disabled":""}>
+              <option value="geely" ${e.brand === "geely" ? "selected" : ""}>Geely</option>
+              <option value="byd"   ${e.brand === "byd"   ? "selected" : ""}>BYD</option>
+              <option value="other" ${e.brand === "other" ? "selected" : ""}>Other</option>
+            </select>
+          </label>
+          ${brandHint}
+        </div>
+        <div class="commission-grid">
+          <div class="comm-field-wrap">
+            <label>Sedan/CUV Qty<input type="number" min="0" value="${e.sedan_qty||0}" ${isOffsite?"disabled":""} onchange="updateEntry('${pid}','${e.id}','sedan_qty',this.value)"></label>
+            <div class="div-row"><span class="div-label">Workers</span>${divSel('sedan_div', e.sedan_div||1)}</div>
+          </div>
+          <div class="comm-field-wrap">
+            <label>MPV Qty<input type="number" min="0" value="${e.mpv_qty||0}" ${isOffsite?"disabled":""} onchange="updateEntry('${pid}','${e.id}','mpv_qty',this.value)"></label>
+            <div class="div-row"><span class="div-label">Workers</span>${divSel('mpv_div', e.mpv_div||1)}</div>
+          </div>
+          <div class="comm-field-wrap">
+            <label>Sunroof Qty<input type="number" min="0" value="${e.sunroof_qty||0}" ${isOffsite?"disabled":""} onchange="updateEntry('${pid}','${e.id}','sunroof_qty',this.value)"></label>
+            <div class="div-row"><span class="div-label">Workers</span>${divSel('sunroof_div', e.sunroof_div||1)}</div>
+          </div>
+          <div class="comm-field-wrap">
+            <label>Scrap Qty<input type="number" min="0" value="${e.scrapping_qty||0}" ${isOffsite?"disabled":""} onchange="updateEntry('${pid}','${e.id}','scrapping_qty',this.value)"></label>
+            <div class="div-row"><span class="div-label">Workers</span>${divSel('scrap_div', e.scrap_div||1)}</div>
+          </div>
+          <div class="comm-field-wrap">
+            <label>Scrap Rate<input type="number" min="0" value="${e.scrapping_rate||0}" ${isOffsite?"disabled":""} onchange="updateEntry('${pid}','${e.id}','scrapping_rate',this.value)"></label>
+          </div>
+          <div class="comm-field-wrap">
+            <label>Tubes Qty (₱50 ea)<input type="number" min="0" value="${e.tubes_qty||0}" ${isOffsite?"disabled":""} onchange="updateEntry('${pid}','${e.id}','tubes_qty',this.value)"></label>
+            <div class="div-row"><span class="div-label">Workers</span>${divSel('tubes_div', e.tubes_div||1)}</div>
+          </div>
         </div>
       </div>
       <div class="entry-section">
@@ -534,6 +602,16 @@ function renderEntries(pid) {
     </div>`;
   }).join("");
   lucide.createIcons();
+}
+
+// Handle holiday type change — syncs legacy is_holiday flag too
+async function onHolidayTypeChange(pid, eid, type) {
+  const p = state.periods.find(x => x.id === pid);
+  const e = p.entries.find(x => x.id === eid);
+  e.holiday_type = type;
+  e.is_holiday = (type === "onsite" || type === "offsite");
+  await sb.from('entries').update({ holiday_type: type, is_holiday: e.is_holiday }).eq('id', eid);
+  editPeriod(pid); // full re-render so offsite greying applies
 }
 
 // =============== DEDUCTIONS ===============
@@ -784,8 +862,6 @@ function exportTimestamp() {
   const d = new Date();
   return d.toISOString().replace(/[-:]/g,"").replace("T","_").slice(0,15);
 }
-
-function exportCSV(pid) {
   const p = state.periods.find(x => x.id === pid);
   const emp = state.employees.find(e => e.id === p.employee_id);
   const t = calcPeriod(p);
@@ -1055,28 +1131,47 @@ function exportPDF(pid) {
   doc.text(`PHP ${fmt(t.net)}`, pageW - margin - 14, y + 21, { align: "right" });
   doc.setTextColor(0); y += 46;
 
-  // Daily breakdown — landscape gives us more width
+  // Daily breakdown — A4 landscape usable width = ~761pt (841 - 40*2)
+  // Columns must sum to ≤ 761. Total below = 761.
   doc.autoTable({
     startY: y, margin: { left: margin, right: margin }, theme: "grid",
-    head: [["Date", "Location", "Time In", "Time Out", "Type", "Brand", "Sed", "MPV", "Sun", "Scr", "Tub", "Div", "OT Hrs", "OT Min", "Total OT", "Commission", "OT Pay", "Holiday", "Gas", "Day Total"]],
+    head: [["Date", "Location", "In", "Out", "Type", "Brand", "Sed", "MPV", "Sun", "Scr", "Tub", "OT Hrs", "OT Min", "Commission", "OT Pay", "Holiday", "Gas", "Total"]],
     body: p.entries.map(e => {
       const c = calcEntry(e, emp.base_rate);
-      const type = e.is_offset ? "OFFSET" : e.is_holiday ? "HOLIDAY" : e.is_halfday ? "HALF" : "FULL";
+      const holidayType = e.holiday_type || (e.is_holiday ? "onsite" : "none");
+      const type = e.is_offset ? "OFFSET" : holidayType === "offsite" ? "HOL OFF" : holidayType === "onsite" ? "HOL ON" : e.is_halfday ? "HALF" : "FULL";
       const otH = +e.ot_hours || 0;
       const otM = +e.ot_minutes || 0;
-      return [e.date, e.location || "—", to12h(e.time_in) || "—", to12h(e.time_out) || "—", type, (e.brand || "").toUpperCase(),
-        e.sedan_qty || "—", e.mpv_qty || "—", e.sunroof_qty || "—", e.scrapping_qty || "—", e.tubes_qty || "—", e.divide_by,
-        otH || "—", otM || "—", formatOT(otH, otM) || "—",
+      // Show qty/div for each field e.g. "11" or "25÷2"
+      const qd = (qty, div) => { const q = qty||0; const d = div||1; return q ? (d>1?`${q}÷${d}`:`${q}`) : "—"; };
+      return [e.date, e.location || "—", to12h(e.time_in)||"—", to12h(e.time_out)||"—", type, (e.brand||"").toUpperCase(),
+        qd(e.sedan_qty, e.sedan_div), qd(e.mpv_qty, e.mpv_div), qd(e.sunroof_qty, e.sunroof_div),
+        qd(e.scrapping_qty, e.scrap_div), qd(e.tubes_qty, e.tubes_div),
+        otH||"—", otM||"—",
         fmt(c.commission), fmt(c.otPay), fmt(c.holiday), fmt(c.gas), fmt(c.total)];
     }),
-    headStyles: { fillColor: [30, 30, 30], textColor: 255, fontSize: 8, fontStyle: "bold", halign: "center" },
-    styles: { font: "helvetica", fontSize: 8, cellPadding: 4, lineColor: [180, 180, 180], lineWidth: 0.3, textColor: 20, overflow: "linebreak" },
+    headStyles: { fillColor: [30, 30, 30], textColor: 255, fontSize: 7.5, fontStyle: "bold", halign: "center" },
+    styles: { font: "helvetica", fontSize: 7.5, cellPadding: 3.5, lineColor: [180, 180, 180], lineWidth: 0.3, textColor: 20, overflow: "linebreak" },
     alternateRowStyles: { fillColor: [248, 248, 248] },
     columnStyles: {
-      0: { cellWidth: 54 }, 1: { cellWidth: 60 }, 2: { cellWidth: 46 }, 3: { cellWidth: 46 }, 4: { cellWidth: 40 }, 5: { cellWidth: 38 },
-      6: { cellWidth: 26, halign: "center" }, 7: { cellWidth: 26, halign: "center" }, 8: { cellWidth: 26, halign: "center" }, 9: { cellWidth: 26, halign: "center" }, 10: { cellWidth: 26, halign: "center" }, 11: { cellWidth: 24, halign: "center" },
-      12: { cellWidth: 32, halign: "center" }, 13: { cellWidth: 32, halign: "center" }, 14: { cellWidth: 38, halign: "center" },
-      15: { cellWidth: 62, halign: "right" }, 16: { cellWidth: 52, halign: "right" }, 17: { cellWidth: 50, halign: "right" }, 18: { cellWidth: 44, halign: "right" }, 19: { cellWidth: 58, halign: "right", fontStyle: "bold" }
+      0: { cellWidth: 52 },  // Date
+      1: { cellWidth: 52 },  // Location
+      2: { cellWidth: 40 },  // In
+      3: { cellWidth: 40 },  // Out
+      4: { cellWidth: 42 },  // Type
+      5: { cellWidth: 36 },  // Brand
+      6: { cellWidth: 30, halign: "center" },  // Sed
+      7: { cellWidth: 30, halign: "center" },  // MPV
+      8: { cellWidth: 30, halign: "center" },  // Sun
+      9: { cellWidth: 30, halign: "center" },  // Scr
+      10: { cellWidth: 30, halign: "center" }, // Tub
+      11: { cellWidth: 30, halign: "center" }, // OT Hrs
+      12: { cellWidth: 30, halign: "center" }, // OT Min
+      13: { cellWidth: 62, halign: "right" },  // Commission
+      14: { cellWidth: 50, halign: "right" },  // OT Pay
+      15: { cellWidth: 47, halign: "right" },  // Holiday
+      16: { cellWidth: 40, halign: "right" },  // Gas
+      17: { cellWidth: 56, halign: "right", fontStyle: "bold" } // Total
     },
     didDrawPage: () => {
       doc.setFontSize(8); doc.setTextColor(110); doc.setFont("helvetica", "normal");

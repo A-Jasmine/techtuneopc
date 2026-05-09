@@ -1800,3 +1800,66 @@ textarea:focus {
 }
 .history-table tr:last-child td { border-bottom: none; }
 .history-table tr:hover td { background: var(--surface-2); }
+
+/* ── Commission per-field divide grid ── */
+.commission-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  gap: 10px;
+}
+.comm-field-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.comm-field-wrap label {
+  margin: 0;
+}
+.div-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.div-label {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .6px;
+  color: var(--text-dim);
+  white-space: nowrap;
+}
+.div-row select {
+  flex: 1;
+  font-size: 12px;
+  padding: 4px 6px;
+  min-width: 0;
+}
+.brand-rate-hint {
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 4px 10px;
+}
+
+/* ── Offsite holiday entry greyed overlay ── */
+.entry-offsite {
+  position: relative;
+  background: var(--surface-2);
+  border-color: var(--purple-border) !important;
+}
+.entry-offsite::after {
+  content: "HOLIDAY OFFSITE — No work logged";
+  position: absolute;
+  top: 10px;
+  right: 14px;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: .8px;
+  text-transform: uppercase;
+  color: var(--purple);
+  background: var(--purple-bg);
+  border: 1px solid var(--purple-border);
+  border-radius: 20px;
+  padding: 3px 10px;
+  pointer-events: none;
+}
