@@ -114,10 +114,42 @@ async function deleteEmp(id) {
   toast("Employee deleted");
 }
 
+let empSearch = "";
+
+function onEmpSearchChange() {
+  empSearch = (document.getElementById("emp-search-input")?.value || "").toLowerCase().trim();
+  renderEmployees();
+}
+
 function renderEmployees() {
   const el = document.getElementById("emp-list");
-  if (state.employees.length === 0) { el.innerHTML = '<div class="empty-state">No employees yet — add one to get started.</div>'; return; }
-  el.innerHTML = state.employees.map(e => `
+  const searchBar = document.getElementById("emp-search-bar");
+
+  if (state.employees.length === 0) {
+    if (searchBar) searchBar.style.display = "none";
+    el.innerHTML = '<div class="empty-state">No employees yet — add one to get started.</div>';
+    return;
+  }
+
+  if (searchBar) searchBar.style.display = "flex";
+
+  // Keep search input value in sync without disturbing focus
+  const inp = document.getElementById("emp-search-input");
+  if (inp && document.activeElement !== inp) inp.value = empSearch;
+
+  const filtered = empSearch
+    ? state.employees.filter(e =>
+        e.name.toLowerCase().includes(empSearch) ||
+        (e.position || "").toLowerCase().includes(empSearch))
+    : state.employees;
+
+  if (filtered.length === 0) {
+    el.innerHTML = '<div class="empty-state">No employees match your search.</div>';
+    lucide.createIcons();
+    return;
+  }
+
+  el.innerHTML = filtered.map(e => `
     <div class="list-item">
       <div class="emp-avatar">${e.name.charAt(0).toUpperCase()}</div>
       <div class="info">
@@ -654,17 +686,24 @@ function buildSummaryXLSX(titleLabel, rangeLabel, filteredPeriods) {
 }
 
 function exportSummaryCSV(mode) {
-  // mode = 'weekly'
+  // mode = 'weekly' — strict calendar week: Monday 00:00 → Sunday 23:59
   const today = new Date();
-  const cutoff = new Date(today); cutoff.setDate(cutoff.getDate() - 7);
-  const cutoffStr = cutoff.toISOString().slice(0, 10);
-  const todayStr = today.toISOString().slice(0, 10);
-  const filtered = state.periods.filter(p => (p.pay_date || "") >= cutoffStr && (p.pay_date || "") <= todayStr);
-  if (!filtered.length) { toast("No pay periods found for the past 7 days."); return; }
-  const { ws } = buildSummaryXLSX("WEEKLY", `Pay date: ${cutoffStr} → ${todayStr}`, filtered);
+  const dow = today.getDay(); // 0=Sun, 1=Mon … 6=Sat
+  const diffToMon = (dow === 0) ? -6 : 1 - dow; // days back to reach Monday
+  const weekStart = new Date(today);
+  weekStart.setDate(today.getDate() + diffToMon);
+  const weekEnd = new Date(weekStart);
+  weekEnd.setDate(weekStart.getDate() + 6); // Sunday
+
+  const weekStartStr = weekStart.toISOString().slice(0, 10);
+  const weekEndStr   = weekEnd.toISOString().slice(0, 10);
+
+  const filtered = state.periods.filter(p => (p.pay_date || "") >= weekStartStr && (p.pay_date || "") <= weekEndStr);
+  if (!filtered.length) { toast(`No pay periods found for this week (${weekStartStr} → ${weekEndStr}).`); return; }
+  const { ws } = buildSummaryXLSX("WEEKLY", `Week of ${weekStartStr} → ${weekEndStr}`, filtered);
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, "Summary");
-  XLSX.writeFile(wb, `payroll_summary_weekly_${todayStr}.xlsx`);
+  XLSX.writeFile(wb, `payroll_summary_week_${weekStartStr}.xlsx`);
   toast("Weekly Excel exported ✓");
 }
 

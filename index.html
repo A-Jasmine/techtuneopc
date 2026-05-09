@@ -78,7 +78,7 @@
             <div class="export-btn-icon"><i data-lucide="calendar-days"></i></div>
             <div class="export-btn-body">
               <strong>Weekly Export</strong>
-              <span>All periods with pay dates in the past 7 days</span>
+              <span>Pay periods with pay dates in the current week (Mon–Sun)</span>
             </div>
             <i data-lucide="arrow-down-to-line" class="export-btn-arrow"></i>
           </button>
@@ -133,6 +133,15 @@
             <small>Manage your team roster</small>
           </div>
           <button class="btn primary" onclick="openEmpDialog()"><i data-lucide="plus"></i> Add Employee</button>
+        </div>
+        <div id="emp-search-bar" class="filter-bar" style="display:none">
+          <div class="filter-field grow">
+            <i data-lucide="search"></i>
+            <input id="emp-search-input" placeholder="Search by name or position…" oninput="onEmpSearchChange()" />
+          </div>
+          <button class="btn ghost" onclick="empSearch='';document.getElementById('emp-search-input').value='';renderEmployees()">
+            <i data-lucide="x"></i> Clear
+          </button>
         </div>
         <div id="emp-list" class="list"></div>
       </div>
