@@ -6,8 +6,25 @@ const peso = n => "\u20B1" + (n || 0).toLocaleString("en-PH", { minimumFractionD
 const fmt = n => (n || 0).toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
 // =============== CONSTANTS ===============
-const BYD = { sedan: 150, mpv: 200, sunroof: 50 };
-const GEELY = { sedan: 200, mpv: 200, sunroof: 200 };
+// Commission rates — loaded from localStorage so Settings tab can override them
+function loadCommissionRates() {
+  try {
+    const saved = localStorage.getItem("commissionRates");
+    if (saved) return JSON.parse(saved);
+  } catch(e) {}
+  return {
+    byd:   { sedan: 150, mpv: 200, sunroof: 50 },
+    geely: { sedan: 200, mpv: 200, sunroof: 200 },
+    other: { sedan: 0,   mpv: 0,   sunroof: 0 }
+  };
+}
+function saveCommissionRates(rates) {
+  localStorage.setItem("commissionRates", JSON.stringify(rates));
+}
+let COMMISSION_RATES = loadCommissionRates();
+// Keep legacy aliases in sync so existing calcEntry still works
+let BYD   = COMMISSION_RATES.byd;
+let GEELY = COMMISSION_RATES.geely;
 const TUBE_RATE = 50, HOLIDAY_AMT = 1000, OFFSET_AMT = 1000;
 const BASE_RATE_OPTIONS = [1000, 1100, 1200];
 const LOCATIONS = ["Calamba", "Sta. Rosa", "Las Piñas", "Alabang", "Makati", "Quezon City", "Pasig", "Manila", "Cavite", "Other"];
@@ -25,7 +42,8 @@ function calcEntryBase(e, baseRate) {
   return e.is_halfday ? round2(br / 2) : br;
 }
 function calcEntry(e, baseRate) {
-  const r = e.brand === "byd" ? BYD : e.brand === "geely" ? GEELY : { sedan: 0, mpv: 0, sunroof: 0 };
+  const cr = COMMISSION_RATES;
+  const r = e.brand === "byd" ? cr.byd : e.brand === "geely" ? cr.geely : cr.other;
   const raw = (e.sedan_qty || 0) * r.sedan + (e.mpv_qty || 0) * r.mpv + (e.sunroof_qty || 0) * r.sunroof
             + (e.scrapping_qty || 0) * (e.scrapping_rate || 0) + (e.tubes_qty || 0) * TUBE_RATE;
   const div = (e.divide_by || 1) > 0 ? (e.divide_by || 1) : 1;
@@ -74,6 +92,7 @@ document.querySelectorAll(".tab").forEach(t => {
     t.classList.add("active");
     document.getElementById("view-" + t.dataset.tab).classList.add("active");
     if (t.dataset.tab === "dashboard") renderDashboard();
+    if (t.dataset.tab === "settings") renderSettings();
   };
 });
 
@@ -311,6 +330,20 @@ function editPeriod(id) {
   const p = state.periods.find(x => x.id === id);
   const emp = state.employees.find(e => e.id === p.employee_id);
   const t = calcPeriod(p);
+
+  // Attendance summary chips
+  const fullDays    = p.entries.filter(e => !e.is_halfday && !e.is_holiday && !e.is_offset).length;
+  const halfDays    = p.entries.filter(e => e.is_halfday).length;
+  const holidayDays = p.entries.filter(e => e.is_holiday).length;
+  const offsetDays  = p.entries.filter(e => e.is_offset).length;
+  const attendanceChips = `
+    <div class="attendance-chips">
+      <span class="chip chip-full"><i data-lucide="sun"></i> ${fullDays} Full</span>
+      ${halfDays    ? `<span class="chip chip-half"><i data-lucide="clock"></i> ${halfDays} Half</span>` : ""}
+      ${holidayDays ? `<span class="chip chip-holiday"><i data-lucide="star"></i> ${holidayDays} Holiday</span>` : ""}
+      ${offsetDays  ? `<span class="chip chip-offset"><i data-lucide="refresh-cw"></i> ${offsetDays} Offset</span>` : ""}
+    </div>`;
+
   const div = document.getElementById("period-detail");
   div.innerHTML = `
     <div class="period-card">
@@ -318,6 +351,7 @@ function editPeriod(id) {
         <div>
           <h2><i data-lucide="calendar"></i> ${emp.name} — Pay Period</h2>
           <small>Base ₱${(+emp.base_rate||1000).toLocaleString()}/day • Edit work entries and compute net pay</small>
+          ${attendanceChips}
         </div>
         <div class="row">
           <button class="btn" onclick="exportCSV('${p.id}')"><i data-lucide="file-spreadsheet"></i> Excel</button>
@@ -541,16 +575,42 @@ function renderDeds(pid) {
 }
 
 // =============== DASHBOARD ===============
-let chartBar, chartPie;
+let chartBar, chartPie, chartLine;
+let dashboardMonth = new Date().toISOString().slice(0, 7); // e.g. "2025-01"
+let historyEmpId = "";
+
+function buildMonthOptions() {
+  const monthSet = new Set();
+  state.periods.forEach(p => { if (p.pay_date) monthSet.add(p.pay_date.slice(0, 7)); });
+  const months = [...monthSet].sort().reverse();
+  return months;
+}
+
 function renderDashboard() {
+  // ── Inject month selector into KPI area if not already present ──
+  const kpiMonthWrap = document.getElementById("kpi-month-wrap");
+  if (kpiMonthWrap) {
+    const months = buildMonthOptions();
+    const sel = document.getElementById("kpi-month-sel");
+    const current = sel ? sel.value : dashboardMonth;
+    kpiMonthWrap.innerHTML = `
+      <select id="kpi-month-sel" style="font-size:11px;padding:3px 8px;border-radius:6px;border:1px solid var(--border-hi);background:var(--surface);color:var(--text);cursor:pointer" onchange="dashboardMonth=this.value;renderDashboard()">
+        ${months.map(m => {
+          const d = new Date(m + "-01");
+          const label = d.toLocaleString("en-US", { month: "short", year: "numeric" });
+          return `<option value="${m}" ${m === (current || dashboardMonth) ? "selected" : ""}>${label}</option>`;
+        }).join("")}
+      </select>`;
+    if (sel && current) dashboardMonth = current;
+  }
+
   document.getElementById("kpi-emp").textContent = state.employees.length;
   document.getElementById("kpi-per").textContent = state.periods.length;
   let netTotal = 0, monthTotal = 0;
-  const month = new Date().toISOString().slice(0, 7);
   const perEmp = {}, breakdown = { Basic: 0, OT: 0, Commission: 0, Holiday: 0, Gas: 0 };
   state.periods.forEach(p => {
     const t = calcPeriod(p); netTotal += t.net;
-    if ((p.pay_date || "").startsWith(month)) monthTotal += t.net;
+    if ((p.pay_date || "").startsWith(dashboardMonth)) monthTotal += t.net;
     const emp = state.employees.find(e => e.id === p.employee_id);
     if (emp) perEmp[emp.name] = (perEmp[emp.name] || 0) + t.net;
     breakdown.Basic += t.basic; breakdown.OT += t.ot; breakdown.Commission += t.commission;
@@ -579,6 +639,123 @@ function renderDashboard() {
       plugins: { legend: { position: 'right', labels: { color: '#777', font: { size: 11 }, boxWidth: 10, boxHeight: 10, borderRadius: 3, padding: 14, usePointStyle: true, pointStyle: 'rectRounded' } },
         tooltip: { backgroundColor: '#fff', borderColor: 'rgba(0,0,0,.1)', borderWidth: 1, titleColor: '#111', bodyColor: '#666', padding: 12, callbacks: { label: ctx => ' ₱' + ctx.parsed.toLocaleString('en-PH', { minimumFractionDigits: 2 }) } } } }
   });
+
+  renderEarningsHistory();
+}
+
+// ── Per-employee earnings history ──
+function renderEarningsHistory() {
+  const container = document.getElementById("history-section");
+  if (!container) return;
+  if (!state.employees.length) { container.style.display = "none"; return; }
+  container.style.display = "";
+
+  // Populate employee selector
+  const empSel = document.getElementById("history-emp-sel");
+  if (!historyEmpId && state.employees.length) historyEmpId = state.employees[0].id;
+  empSel.innerHTML = state.employees.map(e => `<option value="${e.id}" ${e.id === historyEmpId ? "selected" : ""}>${e.name}</option>`).join("");
+
+  const emp = state.employees.find(e => e.id === historyEmpId);
+  if (!emp) return;
+  const empPeriods = state.periods.filter(p => p.employee_id === historyEmpId).sort((a, b) => (a.pay_date || a.start_date).localeCompare(b.pay_date || b.start_date));
+
+  // Table
+  const tableEl = document.getElementById("history-table-body");
+  if (!empPeriods.length) {
+    tableEl.innerHTML = `<tr><td colspan="8" style="text-align:center;color:var(--text-dim);padding:20px">No pay periods yet.</td></tr>`;
+  } else {
+    tableEl.innerHTML = empPeriods.map(p => {
+      const t = calcPeriod(p);
+      return `<tr>
+        <td>${p.pay_date || "—"}</td>
+        <td>${p.start_date} → ${p.end_date}</td>
+        <td style="text-align:right">${peso(t.basic)}</td>
+        <td style="text-align:right">${peso(t.commission)}</td>
+        <td style="text-align:right">${peso(t.ot)}</td>
+        <td style="text-align:right">${peso(t.deductions)}</td>
+        <td style="text-align:right;font-weight:700;color:var(--green)">${peso(t.net)}</td>
+        <td style="text-align:center">${p.entries.length}</td>
+      </tr>`;
+    }).join("");
+  }
+
+  // Line chart
+  if (chartLine) chartLine.destroy();
+  const labels = empPeriods.map(p => p.pay_date || p.start_date);
+  const netData = empPeriods.map(p => calcPeriod(p).net);
+  chartLine = new Chart(document.getElementById("chart-line"), {
+    type: "line",
+    data: {
+      labels,
+      datasets: [{
+        label: "Net Pay",
+        data: netData,
+        borderColor: '#2563eb',
+        backgroundColor: 'rgba(37,99,235,0.08)',
+        pointBackgroundColor: '#2563eb',
+        pointRadius: 5,
+        pointHoverRadius: 7,
+        tension: 0.35,
+        fill: true,
+        borderWidth: 2.5
+      }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: {
+        legend: { display: false },
+        tooltip: { backgroundColor: '#fff', borderColor: 'rgba(0,0,0,.1)', borderWidth: 1, titleColor: '#111', bodyColor: '#666', padding: 12, callbacks: { label: ctx => ' ₱' + ctx.parsed.y.toLocaleString('en-PH', { minimumFractionDigits: 2 }) } }
+      },
+      scales: {
+        x: { grid: { display: false }, border: { display: false }, ticks: { color: '#999', font: { size: 10 }, maxRotation: 45 } },
+        y: { grid: { color: 'rgba(0,0,0,.05)' }, border: { display: false }, ticks: { color: '#999', font: { size: 11 }, callback: v => '₱' + (v / 1000).toFixed(0) + 'k' } }
+      }
+    }
+  });
+}
+
+// ── Settings tab ──
+function renderSettings() {
+  const r = COMMISSION_RATES;
+  const el = document.getElementById("settings-content");
+  if (!el) return;
+  el.innerHTML = `
+    <div class="card">
+      <div class="card-head">
+        <div><h2><i data-lucide="sliders-horizontal"></i> Commission Rates</h2>
+        <small>Rates per unit. Changes are saved to your browser and take effect immediately.</small></div>
+        <button class="btn primary" onclick="saveSettings()"><i data-lucide="save"></i> Save Changes</button>
+      </div>
+      <div style="display:grid;gap:20px;padding:0 4px">
+        ${["byd","geely","other"].map(brand => `
+          <div>
+            <div style="font-weight:700;font-size:13px;text-transform:uppercase;letter-spacing:.8px;margin-bottom:10px;color:var(--text-soft)">${brand.toUpperCase()}</div>
+            <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px">
+              <label>Sedan / CUV (₱)<input type="number" id="sr-${brand}-sedan" min="0" value="${r[brand].sedan}"></label>
+              <label>MPV (₱)<input type="number" id="sr-${brand}-mpv" min="0" value="${r[brand].mpv}"></label>
+              <label>Sunroof (₱)<input type="number" id="sr-${brand}-sunroof" min="0" value="${r[brand].sunroof}"></label>
+            </div>
+          </div>
+        `).join('<hr style="border:none;border-top:1px solid var(--border);margin:4px 0">')}
+      </div>
+    </div>`;
+  lucide.createIcons();
+}
+
+function saveSettings() {
+  const brands = ["byd","geely","other"];
+  const rates = {};
+  brands.forEach(b => {
+    rates[b] = {
+      sedan:   +document.getElementById(`sr-${b}-sedan`).value || 0,
+      mpv:     +document.getElementById(`sr-${b}-mpv`).value || 0,
+      sunroof: +document.getElementById(`sr-${b}-sunroof`).value || 0,
+    };
+  });
+  COMMISSION_RATES = rates;
+  BYD = rates.byd; GEELY = rates.geely;
+  saveCommissionRates(rates);
+  toast("Commission rates saved ✓");
 }
 
 // =============== EXPORTS (XLSX with styling) ===============
@@ -603,7 +780,10 @@ const xTotalNum = (n) => ({ v: Number(n || 0), t: "n", s: { font: { name: "Calib
 function pushMerge(merges, r1, c1, r2, c2) { merges.push({ s: { r: r1, c: c1 }, e: { r: r2, c: c2 } }); }
 function setRowHeight(ws, idx, h) { ws['!rows'] = ws['!rows'] || []; ws['!rows'][idx] = { hpt: h }; }
 
-function exportCSV(pid) {
+function exportTimestamp() {
+  const d = new Date();
+  return d.toISOString().replace(/[-:]/g,"").replace("T","_").slice(0,15);
+}
   const p = state.periods.find(x => x.id === pid);
   const emp = state.employees.find(e => e.id === p.employee_id);
   const t = calcPeriod(p);
@@ -680,7 +860,7 @@ function exportCSV(pid) {
 
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, "Payroll");
-  XLSX.writeFile(wb, `${emp.name.replace(/\s+/g, "_")}_${p.start_date}_to_${p.end_date}_payroll.xlsx`);
+  XLSX.writeFile(wb, `${emp.name.replace(/\s+/g, "_")}_${p.start_date}_to_${p.end_date}_payroll_exported_${exportTimestamp()}.xlsx`);
 }
 
 // =============== SUMMARY EXPORT CORE ===============
@@ -739,7 +919,7 @@ function exportSummaryCSV(mode) {
   const { ws } = buildSummaryXLSX("WEEKLY", `Pay date: ${cutoffStr} → ${todayStr}`, filtered);
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, "Summary");
-  XLSX.writeFile(wb, `payroll_summary_weekly_${todayStr}.xlsx`);
+  XLSX.writeFile(wb, `payroll_summary_weekly_${todayStr}_exported_${exportTimestamp()}.xlsx`);
   toast("Weekly Excel exported ✓");
 }
 
@@ -797,7 +977,7 @@ function exportDateRange() {
   const { ws } = buildSummaryXLSX(`CUSTOM RANGE`, `Pay date: ${label}`, filtered);
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, "Summary");
-  XLSX.writeFile(wb, `payroll_summary_${start}_to_${end}.xlsx`);
+  XLSX.writeFile(wb, `payroll_summary_${start}_to_${end}_exported_${exportTimestamp()}.xlsx`);
   closeDateRangeModal();
   toast("Custom range Excel exported ✓");
 }
@@ -916,7 +1096,7 @@ function exportPDF(pid) {
   doc.text(`Total OT: ${formatOT(pdfNormH, pdfNormM) || "0"}  (${pdfNormH}h ${pdfNormM}m)`, margin + 160, summY + 15);
   doc.setTextColor(0);
 
-  doc.save(`${emp.name.replace(/\s+/g, "_")}_${p.start_date}_to_${p.end_date}_payslip.pdf`);
+  doc.save(`${emp.name.replace(/\s+/g, "_")}_${p.start_date}_to_${p.end_date}_payslip_exported_${exportTimestamp()}.pdf`);
 }
 
 // =============== UTILITY ===============
