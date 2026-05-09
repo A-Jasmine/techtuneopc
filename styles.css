@@ -1859,6 +1859,10 @@ textarea:focus {
   padding: 4px 6px;
   min-width: 0;
 }
+.comm-field-wrap--unit-row .div-row select {
+  flex: none;
+  width: 72px;
+}
 .brand-rate-hint {
   background: var(--surface-2);
   border: 1px solid var(--border);
