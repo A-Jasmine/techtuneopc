@@ -78,7 +78,7 @@
             <div class="export-btn-icon"><i data-lucide="calendar-days"></i></div>
             <div class="export-btn-body">
               <strong>Weekly Export</strong>
-              <span>Pay periods with pay dates in the current week (Mon–Sun)</span>
+              <span>All periods with pay dates in the past 7 days</span>
             </div>
             <i data-lucide="arrow-down-to-line" class="export-btn-arrow"></i>
           </button>
@@ -177,6 +177,58 @@
     </section>
 
   </main>
+
+  <!-- Edit Employee Modal -->
+  <div class="modal" id="edit-emp-modal">
+    <div class="modal-content">
+      <div class="modal-head">
+        <h3><i data-lucide="user-cog"></i> Edit Employee</h3>
+        <button class="icon-btn" onclick="closeEditEmpDialog()"><i data-lucide="x"></i></button>
+      </div>
+      <div class="form">
+        <input type="hidden" id="edit-emp-id" />
+        <label>Full Name<input id="edit-emp-name" placeholder="e.g. Juan dela Cruz" /></label>
+        <label>Position<input id="edit-emp-pos" /></label>
+        <label>Base Rate (per day)
+          <select id="edit-emp-base">
+            <option value="1000">₱1,000 / day</option>
+            <option value="1100">₱1,100 / day</option>
+            <option value="1200">₱1,200 / day</option>
+          </select>
+        </label>
+      </div>
+      <div class="modal-foot">
+        <button class="btn" onclick="closeEditEmpDialog()">Cancel</button>
+        <button class="btn primary" onclick="saveEditEmp()"><i data-lucide="check"></i> Save Changes</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Edit Employee Modal -->
+  <div class="modal" id="edit-emp-modal">
+    <div class="modal-content">
+      <div class="modal-head">
+        <h3><i data-lucide="user-cog"></i> Edit Employee</h3>
+        <button class="icon-btn" onclick="closeEditEmpDialog()"><i data-lucide="x"></i></button>
+      </div>
+      <div class="form">
+        <input type="hidden" id="edit-emp-id" />
+        <label>Full Name<input id="edit-emp-name" placeholder="e.g. Juan dela Cruz" /></label>
+        <label>Position<input id="edit-emp-pos" /></label>
+        <label>Base Rate (per day)
+          <select id="edit-emp-base">
+            <option value="1000">₱1,000 / day</option>
+            <option value="1100">₱1,100 / day</option>
+            <option value="1200">₱1,200 / day</option>
+          </select>
+        </label>
+      </div>
+      <div class="modal-foot">
+        <button class="btn" onclick="closeEditEmpDialog()">Cancel</button>
+        <button class="btn primary" onclick="saveEditEmp()"><i data-lucide="check"></i> Save Changes</button>
+      </div>
+    </div>
+  </div>
 
   <!-- Employee Modal -->
   <div class="modal" id="emp-modal">

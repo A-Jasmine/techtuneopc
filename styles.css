@@ -888,8 +888,9 @@ textarea:focus {
   margin-top: 14px;
   padding: 20px 26px;
   border-radius: var(--radius-lg);
-  background: linear-gradient(135deg, #111 0%, #1e3a5f 100%);
-  color: #fff;
+  background: var(--blue-bg);
+  border: 1.5px solid var(--blue-border);
+  color: var(--black);
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -901,7 +902,8 @@ textarea:focus {
   font-weight: 700;
   letter-spacing: 1.5px;
   text-transform: uppercase;
-  opacity: .6;
+  color: var(--blue);
+  opacity: 1;
 }
 
 .net-bar span:last-child {
@@ -909,7 +911,7 @@ textarea:focus {
   font-weight: 700;
   font-family: var(--mono);
   letter-spacing: -1px;
-  color: #93c5fd;
+  color: var(--blue);
 }
 
 /* ── MODAL ── */
@@ -1330,10 +1332,11 @@ textarea:focus {
   opacity: .35;
 }
 
-/* Net bar gradient */
+/* Net bar — flat light */
 .net-bar {
-  background: linear-gradient(135deg, #111111, #1f2937 60%, #2563eb) !important;
-  color: #fff;
+  background: var(--blue-bg) !important;
+  border: 1.5px solid var(--blue-border) !important;
+  color: var(--black) !important;
 }
 /* ── USER MENU (TOPBAR) ── */
 .user-menu {

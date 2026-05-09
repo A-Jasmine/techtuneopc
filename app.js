@@ -78,6 +78,33 @@ document.querySelectorAll(".tab").forEach(t => {
 });
 
 // =============== EMPLOYEES ===============
+function openEditEmpDialog(id) {
+  const emp = state.employees.find(e => e.id === id);
+  if (!emp) return;
+  document.getElementById("edit-emp-id").value = emp.id;
+  document.getElementById("edit-emp-name").value = emp.name;
+  document.getElementById("edit-emp-pos").value = emp.position || "";
+  document.getElementById("edit-emp-base").value = String(emp.base_rate || 1000);
+  document.getElementById("edit-emp-modal").classList.add("open");
+  lucide.createIcons();
+}
+function closeEditEmpDialog() { document.getElementById("edit-emp-modal").classList.remove("open"); }
+
+async function saveEditEmp() {
+  const id = document.getElementById("edit-emp-id").value;
+  const name = document.getElementById("edit-emp-name").value.trim();
+  if (!name) return toast("Name required");
+  const position = document.getElementById("edit-emp-pos").value.trim();
+  const base_rate = +document.getElementById("edit-emp-base").value || 1000;
+  const { error } = await sb.from('employees').update({ name, position, base_rate }).eq('id', id);
+  if (error) return toast("Save failed: " + error.message);
+  const emp = state.employees.find(e => e.id === id);
+  if (emp) { emp.name = name; emp.position = position; emp.base_rate = base_rate; }
+  closeEditEmpDialog();
+  renderAll();
+  toast("Employee updated ✓");
+}
+
 function openEmpDialog() {
   document.getElementById("emp-modal").classList.add("open");
   document.getElementById("emp-name").value = "";
@@ -132,8 +159,6 @@ function renderEmployees() {
   }
 
   if (searchBar) searchBar.style.display = "flex";
-
-  // Keep search input value in sync without disturbing focus
   const inp = document.getElementById("emp-search-input");
   if (inp && document.activeElement !== inp) inp.value = empSearch;
 
@@ -156,7 +181,10 @@ function renderEmployees() {
         <strong>${e.name}</strong>
         <small>${e.position || ''} • <span class="rate-chip">₱${(+e.base_rate||1000).toLocaleString()}/day</span></small>
       </div>
-      <button class="btn danger" onclick="deleteEmp('${e.id}')"><i data-lucide="trash-2"></i> Delete</button>
+      <div class="row">
+        <button class="btn accent" onclick="openEditEmpDialog('${e.id}')"><i data-lucide="pencil"></i> Edit</button>
+        <button class="btn danger" onclick="deleteEmp('${e.id}')"><i data-lucide="trash-2"></i> Delete</button>
+      </div>
     </div>`).join("");
   lucide.createIcons();
 }
@@ -615,23 +643,38 @@ function exportCSV(pid) {
   aoa.push([xText("")]);
 
   const dailyR = aoa.length;
-  aoa.push([xSection("DAILY BREAKDOWN")]); pushMerge(merges, dailyR, 0, dailyR, 19);
-  const headers = ["Date", "Location", "Time In", "Time Out", "Type", "Base Pay", "OT", "Brand", "Sedan", "MPV", "Sunroof", "Scrap", "Tubes", "Div", "Commission", "OT Pay", "Holiday", "Gas", "Day Total", "Notes"];
+  aoa.push([xSection("DAILY BREAKDOWN")]); pushMerge(merges, dailyR, 0, dailyR, 21);
+  const headers = ["Date", "Location", "Time In", "Time Out", "Type", "Base Pay", "OT Hrs", "OT Min", "Total OT", "Brand", "Sedan", "MPV", "Sunroof", "Scrap", "Tubes", "Div", "Commission", "OT Pay", "Holiday", "Gas", "Day Total", "Notes"];
   aoa.push(headers.map(h => xHead(h)));
   p.entries.forEach(e => {
     const c = calcEntry(e, emp.base_rate);
     const type = e.is_offset ? "Offset" : e.is_holiday ? "Holiday" : e.is_halfday ? "Half Day" : "Full";
+    const otH = +e.ot_hours || 0;
+    const otM = +e.ot_minutes || 0;
+    const totalOTLabel = formatOT(otH, otM);
     aoa.push([
       xText(e.date), xText(e.location), xText(to12h(e.time_in) || "—"), xText(to12h(e.time_out) || "—"), xText(type),
-      xNum(c.base), xText(formatOT(e.ot_hours, e.ot_minutes)), xText((e.brand || "").toUpperCase()),
+      xNum(c.base), xText(String(otH)), xText(String(otM)), xText(totalOTLabel), xText((e.brand || "").toUpperCase()),
       xText(String(e.sedan_qty || 0)), xText(String(e.mpv_qty || 0)), xText(String(e.sunroof_qty || 0)), xText(String(e.scrapping_qty || 0)), xText(String(e.tubes_qty || 0)), xText(String(e.divide_by || 1)),
       xNum(c.commission), xNum(c.otPay), xNum(c.holiday), xNum(c.gas), xNum(c.total), xText(e.notes || "")
     ]);
   });
 
+  // Totals row
+  const totalOTHrs = p.entries.reduce((s, e) => s + (+e.ot_hours || 0), 0);
+  const totalOTMins = p.entries.reduce((s, e) => s + (+e.ot_minutes || 0), 0);
+  const normOTH = totalOTHrs + Math.floor(totalOTMins / 60);
+  const normOTM = totalOTMins % 60;
+  aoa.push([
+    xTotal("TOTALS"), xTotal(""), xTotal(""), xTotal(""), xTotal(""),
+    xTotal(""), xTotalNum(normOTH), xTotalNum(normOTM), xTotal(formatOT(normOTH, normOTM)), xTotal(""),
+    xTotal(""), xTotal(""), xTotal(""), xTotal(""), xTotal(""), xTotal(""),
+    xTotalNum(t.commission), xTotalNum(t.ot), xTotalNum(t.holiday), xTotalNum(t.gas), xTotalNum(t.earnings), xTotal("")
+  ]);
+
   const ws = XLSX.utils.aoa_to_sheet(aoa.map(row => row.map(cell => cell || xText(""))));
   ws['!merges'] = merges;
-  ws['!cols'] = [{ wch: 12 }, { wch: 14 }, { wch: 10 }, { wch: 10 }, { wch: 9 }, { wch: 11 }, { wch: 7 }, { wch: 8 }, { wch: 7 }, { wch: 7 }, { wch: 8 }, { wch: 7 }, { wch: 7 }, { wch: 6 }, { wch: 13 }, { wch: 11 }, { wch: 11 }, { wch: 10 }, { wch: 13 }, { wch: 22 }];
+  ws['!cols'] = [{ wch: 12 }, { wch: 14 }, { wch: 10 }, { wch: 10 }, { wch: 9 }, { wch: 11 }, { wch: 7 }, { wch: 7 }, { wch: 9 }, { wch: 8 }, { wch: 7 }, { wch: 7 }, { wch: 8 }, { wch: 7 }, { wch: 7 }, { wch: 6 }, { wch: 13 }, { wch: 11 }, { wch: 11 }, { wch: 10 }, { wch: 13 }, { wch: 22 }];
   ws['!rows'] = ws['!rows'] || [];
   ws['!rows'][0] = { hpt: 28 };
 
@@ -686,24 +729,17 @@ function buildSummaryXLSX(titleLabel, rangeLabel, filteredPeriods) {
 }
 
 function exportSummaryCSV(mode) {
-  // mode = 'weekly' — strict calendar week: Monday 00:00 → Sunday 23:59
+  // mode = 'weekly'
   const today = new Date();
-  const dow = today.getDay(); // 0=Sun, 1=Mon … 6=Sat
-  const diffToMon = (dow === 0) ? -6 : 1 - dow; // days back to reach Monday
-  const weekStart = new Date(today);
-  weekStart.setDate(today.getDate() + diffToMon);
-  const weekEnd = new Date(weekStart);
-  weekEnd.setDate(weekStart.getDate() + 6); // Sunday
-
-  const weekStartStr = weekStart.toISOString().slice(0, 10);
-  const weekEndStr   = weekEnd.toISOString().slice(0, 10);
-
-  const filtered = state.periods.filter(p => (p.pay_date || "") >= weekStartStr && (p.pay_date || "") <= weekEndStr);
-  if (!filtered.length) { toast(`No pay periods found for this week (${weekStartStr} → ${weekEndStr}).`); return; }
-  const { ws } = buildSummaryXLSX("WEEKLY", `Week of ${weekStartStr} → ${weekEndStr}`, filtered);
+  const cutoff = new Date(today); cutoff.setDate(cutoff.getDate() - 7);
+  const cutoffStr = cutoff.toISOString().slice(0, 10);
+  const todayStr = today.toISOString().slice(0, 10);
+  const filtered = state.periods.filter(p => (p.pay_date || "") >= cutoffStr && (p.pay_date || "") <= todayStr);
+  if (!filtered.length) { toast("No pay periods found for the past 7 days."); return; }
+  const { ws } = buildSummaryXLSX("WEEKLY", `Pay date: ${cutoffStr} → ${todayStr}`, filtered);
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, "Summary");
-  XLSX.writeFile(wb, `payroll_summary_week_${weekStartStr}.xlsx`);
+  XLSX.writeFile(wb, `payroll_summary_weekly_${todayStr}.xlsx`);
   toast("Weekly Excel exported ✓");
 }
 
@@ -840,21 +876,25 @@ function exportPDF(pid) {
   // Daily breakdown — landscape gives us more width
   doc.autoTable({
     startY: y, margin: { left: margin, right: margin }, theme: "grid",
-    head: [["Date", "Location", "Time In", "Time Out", "Type", "Brand", "Sed", "MPV", "Sun", "Scr", "Tub", "Div", "Commission", "OT Pay", "Holiday", "Gas", "Day Total"]],
+    head: [["Date", "Location", "Time In", "Time Out", "Type", "Brand", "Sed", "MPV", "Sun", "Scr", "Tub", "Div", "OT Hrs", "OT Min", "Total OT", "Commission", "OT Pay", "Holiday", "Gas", "Day Total"]],
     body: p.entries.map(e => {
       const c = calcEntry(e, emp.base_rate);
       const type = e.is_offset ? "OFFSET" : e.is_holiday ? "HOLIDAY" : e.is_halfday ? "HALF" : "FULL";
+      const otH = +e.ot_hours || 0;
+      const otM = +e.ot_minutes || 0;
       return [e.date, e.location || "—", to12h(e.time_in) || "—", to12h(e.time_out) || "—", type, (e.brand || "").toUpperCase(),
         e.sedan_qty || "—", e.mpv_qty || "—", e.sunroof_qty || "—", e.scrapping_qty || "—", e.tubes_qty || "—", e.divide_by,
+        otH || "—", otM || "—", formatOT(otH, otM) || "—",
         fmt(c.commission), fmt(c.otPay), fmt(c.holiday), fmt(c.gas), fmt(c.total)];
     }),
     headStyles: { fillColor: [30, 30, 30], textColor: 255, fontSize: 8, fontStyle: "bold", halign: "center" },
     styles: { font: "helvetica", fontSize: 8, cellPadding: 4, lineColor: [180, 180, 180], lineWidth: 0.3, textColor: 20, overflow: "linebreak" },
     alternateRowStyles: { fillColor: [248, 248, 248] },
     columnStyles: {
-      0: { cellWidth: 60 }, 1: { cellWidth: 70 }, 2: { cellWidth: 50 }, 3: { cellWidth: 50 }, 4: { cellWidth: 46 }, 5: { cellWidth: 46 },
-      6: { cellWidth: 30, halign: "center" }, 7: { cellWidth: 30, halign: "center" }, 8: { cellWidth: 30, halign: "center" }, 9: { cellWidth: 30, halign: "center" }, 10: { cellWidth: 30, halign: "center" }, 11: { cellWidth: 28, halign: "center" },
-      12: { cellWidth: 70, halign: "right" }, 13: { cellWidth: 60, halign: "right" }, 14: { cellWidth: 56, halign: "right" }, 15: { cellWidth: 50, halign: "right" }, 16: { cellWidth: 64, halign: "right", fontStyle: "bold" }
+      0: { cellWidth: 54 }, 1: { cellWidth: 60 }, 2: { cellWidth: 46 }, 3: { cellWidth: 46 }, 4: { cellWidth: 40 }, 5: { cellWidth: 38 },
+      6: { cellWidth: 26, halign: "center" }, 7: { cellWidth: 26, halign: "center" }, 8: { cellWidth: 26, halign: "center" }, 9: { cellWidth: 26, halign: "center" }, 10: { cellWidth: 26, halign: "center" }, 11: { cellWidth: 24, halign: "center" },
+      12: { cellWidth: 32, halign: "center" }, 13: { cellWidth: 32, halign: "center" }, 14: { cellWidth: 38, halign: "center" },
+      15: { cellWidth: 62, halign: "right" }, 16: { cellWidth: 52, halign: "right" }, 17: { cellWidth: 50, halign: "right" }, 18: { cellWidth: 44, halign: "right" }, 19: { cellWidth: 58, halign: "right", fontStyle: "bold" }
     },
     didDrawPage: () => {
       doc.setFontSize(8); doc.setTextColor(110); doc.setFont("helvetica", "normal");
@@ -863,6 +903,18 @@ function exportPDF(pid) {
       doc.setTextColor(0);
     }
   });
+
+  // OT & hours totals summary below the table
+  const pdfTotalOTH = p.entries.reduce((s, e) => s + (+e.ot_hours || 0), 0);
+  const pdfTotalOTM = p.entries.reduce((s, e) => s + (+e.ot_minutes || 0), 0);
+  const pdfNormH = pdfTotalOTH + Math.floor(pdfTotalOTM / 60);
+  const pdfNormM = pdfTotalOTM % 60;
+  const summY = doc.lastAutoTable.finalY + 10;
+  doc.setFillColor(242, 246, 255); doc.roundedRect(margin, summY, pageW - margin * 2, 24, 4, 4, "F");
+  doc.setFont("helvetica", "bold"); doc.setFontSize(9); doc.setTextColor(30);
+  doc.text(`Total Days Worked: ${p.entries.length}`, margin + 14, summY + 15);
+  doc.text(`Total OT: ${formatOT(pdfNormH, pdfNormM) || "0"}  (${pdfNormH}h ${pdfNormM}m)`, margin + 160, summY + 15);
+  doc.setTextColor(0);
 
   doc.save(`${emp.name.replace(/\s+/g, "_")}_${p.start_date}_to_${p.end_date}_payslip.pdf`);
 }
