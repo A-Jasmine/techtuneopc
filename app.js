@@ -68,6 +68,7 @@ function calcEntry(e, baseRate) {
   const sedanDiv   = safeDiv(e.sedan_div   || globalDiv);
   const mpvDiv     = safeDiv(e.mpv_div     || globalDiv);
   const sunroofDiv = safeDiv(e.sunroof_div || globalDiv);
+  const scrapDiv   = safeDiv(e.scrap_div   || globalDiv);
   const tubesDiv   = safeDiv(e.tubes_div   || globalDiv);
 
   // Units list: each row has qty and div, rate comes from brand's units_rate
@@ -77,10 +78,11 @@ function calcEntry(e, baseRate) {
   }, 0);
 
   const commission = round2(
-    (e.sedan_qty   || 0) * r.sedan   / sedanDiv +
-    (e.mpv_qty     || 0) * r.mpv     / mpvDiv +
-    (e.sunroof_qty || 0) * r.sunroof / sunroofDiv +
-    (e.tubes_qty   || 0) * TUBE_RATE / tubesDiv +
+    (e.sedan_qty     || 0) * r.sedan      / sedanDiv +
+    (e.mpv_qty       || 0) * r.mpv        / mpvDiv +
+    (e.sunroof_qty   || 0) * r.sunroof    / sunroofDiv +
+    (e.scrapping_qty || 0) * (r.scrap||0) / scrapDiv +
+    (e.tubes_qty     || 0) * TUBE_RATE    / tubesDiv +
     unitsCommission
   );
   const otHrs = (+e.ot_hours || 0) + (+e.ot_minutes || 0) / 60;
@@ -443,10 +445,11 @@ async function addEntry(pid) {
     sedan_qty:     DEFAULT_UNITS().sedan_qty     || 0,
     mpv_qty:       DEFAULT_UNITS().mpv_qty       || 0,
     sunroof_qty:   DEFAULT_UNITS().sunroof_qty   || 0,
+    scrapping_qty: DEFAULT_UNITS().scrapping_qty || 0,
     tubes_qty:     DEFAULT_UNITS().tubes_qty     || 0,
     units_list: JSON.stringify([]),
     divide_by: 1,
-    sedan_div: 1, mpv_div: 1, sunroof_div: 1, tubes_div: 1,
+    sedan_div: 1, mpv_div: 1, sunroof_div: 1, scrap_div: 1, tubes_div: 1,
     gas_allowance: 0, is_holiday: false, is_offset: false, is_halfday: false,
     holiday_type: "none", notes: ""
   };
@@ -470,7 +473,7 @@ async function delEntry(pid, eid) {
   editPeriod(pid);
 }
 
-const NUMERIC_KEYS = ["sedan_qty","mpv_qty","sunroof_qty","tubes_qty","divide_by","sedan_div","mpv_div","sunroof_div","tubes_div","ot_hours","ot_minutes","gas_allowance","ot_rate"];
+const NUMERIC_KEYS = ["sedan_qty","mpv_qty","sunroof_qty","scrapping_qty","tubes_qty","divide_by","sedan_div","mpv_div","sunroof_div","scrap_div","tubes_div","ot_hours","ot_minutes","gas_allowance","ot_rate"];
 const BOOL_KEYS = ["is_holiday","is_offset","is_halfday"];
 const STRING_KEYS = ["holiday_type"];
 
@@ -557,20 +560,35 @@ function renderUnitsListUI(pid, eid) {
   const list = parseUnitsList(e);
   const cr = COMMISSION_RATES;
   const r = e.brand === "byd" ? cr.byd : e.brand === "geely" ? cr.geely : cr.other;
+  const isOffsite = (e.holiday_type || (e.is_holiday ? "onsite" : "none")) === "offsite";
+  const disAttr = isOffsite ? "disabled" : "";
+
+  // Each unit row becomes its own comm-field-wrap card, plus a final add-button card
+  // We render the wrapper itself as the grid cell spanning container
   wrap.innerHTML = list.map((u, i) => `
-    <div class="units-list-row">
-      <input placeholder="Description" value="${u.desc || ""}" style="flex:1;min-width:80px" onchange="updateUnitsRow('${pid}','${eid}',${i},'desc',this.value)">
-      <input type="number" min="0" value="${u.qty || 0}" style="width:60px" placeholder="Qty" onchange="updateUnitsRow('${pid}','${eid}',${i},'qty',this.value)">
-      <select style="width:70px;font-size:12px" title="÷ Workers" onchange="updateUnitsRow('${pid}','${eid}',${i},'div',this.value)">
-        <option value="1" ${(+u.div||1)===1?"selected":""}>÷1</option>
-        <option value="2" ${(+u.div||1)===2?"selected":""}>÷2</option>
-        <option value="3" ${(+u.div||1)===3?"selected":""}>÷3</option>
-        <option value="4" ${(+u.div||1)===4?"selected":""}>÷4</option>
-      </select>
-      <span style="font-size:11px;color:var(--text-dim);white-space:nowrap">= ₱${round2((+u.qty||0)*(r.units_rate||0)/safeDiv(+u.div||1)).toLocaleString("en-PH",{minimumFractionDigits:2})}</span>
-      <button type="button" class="btn danger" style="padding:4px 8px;min-width:0" onclick="removeUnitsRow('${pid}','${eid}',${i})"><i data-lucide="trash-2"></i></button>
+    <div class="comm-field-wrap comm-field-wrap--unit-row">
+      <label style="flex:1">
+        <span style="display:flex;align-items:center;justify-content:space-between;gap:4px">
+          <span>Units Qty <span style="font-weight:400;font-size:10px;color:var(--text-dim)">(₱${(r.units_rate||0).toLocaleString()}/ea)</span></span>
+          <button type="button" class="icon-btn" style="width:20px;height:20px;padding:0;flex-shrink:0;color:var(--danger)" title="Remove row" ${disAttr} onclick="removeUnitsRow('${pid}','${eid}',${i})"><i data-lucide="x"></i></button>
+        </span>
+        <div style="display:flex;gap:6px;align-items:center;margin-top:4px">
+          <input type="text" placeholder="Description" value="${(u.desc||'').replace(/"/g,'&quot;')}" style="flex:1;min-width:0;font-size:12px" ${disAttr} onchange="updateUnitsRow('${pid}','${eid}',${i},'desc',this.value)">
+          <input type="number" min="0" value="${u.qty||0}" style="width:52px;text-align:center" ${disAttr} onchange="updateUnitsRow('${pid}','${eid}',${i},'qty',this.value)">
+        </div>
+      </label>
+      <div class="div-row"><span class="div-label">Workers</span>
+        <select style="width:80px;font-size:12px" title="Divide by (# of workers)" ${disAttr} onchange="updateUnitsRow('${pid}','${eid}',${i},'div',this.value)">
+          <option value="1" ${(+u.div||1)===1?"selected":""}>÷1</option>
+          <option value="2" ${(+u.div||1)===2?"selected":""}>÷2</option>
+          <option value="3" ${(+u.div||1)===3?"selected":""}>÷3</option>
+          <option value="4" ${(+u.div||1)===4?"selected":""}>÷4</option>
+        </select>
+      </div>
     </div>`).join("") + `
-    <button type="button" class="btn" style="margin-top:6px;font-size:12px" onclick="addUnitsRow('${pid}','${eid}')"><i data-lucide="plus"></i> Add Row</button>`;
+  <div class="comm-field-wrap comm-field-wrap--add-unit">
+    <button type="button" class="btn" style="width:100%;font-size:12px;gap:6px" ${disAttr} onclick="addUnitsRow('${pid}','${eid}')"><i data-lucide="plus"></i> Add Unit</button>
+  </div>`;
   lucide.createIcons();
 }
 function updateEntryTotals(pid, eid) {
@@ -694,15 +712,16 @@ function renderEntries(pid) {
             <div class="div-row"><span class="div-label">Workers</span>${divSel('sunroof_div', e.sunroof_div||1)}</div>
           </div>
           <div class="comm-field-wrap">
+            <label>Scrapping Qty<input type="number" min="0" value="${e.scrapping_qty||0}" ${isOffsite?"disabled":""} onchange="updateEntry('${pid}','${e.id}','scrapping_qty',this.value)"></label>
+            <div class="div-row"><span class="div-label">Workers</span>${divSel('scrap_div', e.scrap_div||1)}</div>
+          </div>
+          <div class="comm-field-wrap">
             <label>Tubes Qty (₱50 ea)<input type="number" min="0" value="${e.tubes_qty||0}" ${isOffsite?"disabled":""} onchange="updateEntry('${pid}','${e.id}','tubes_qty',this.value)"></label>
             <div class="div-row"><span class="div-label">Workers</span>${divSel('tubes_div', e.tubes_div||1)}</div>
           </div>
-        </div>
-        <div class="units-list-section" style="${isOffsite?offOpacity:''}">
-          <div class="units-list-header">
-            <span style="font-size:11px;font-weight:700;letter-spacing:.6px;text-transform:uppercase;color:var(--text-dim)">Units Qty <span style="font-weight:400;color:var(--text-dim)">(₱${(r.units_rate||0).toLocaleString()}/unit)</span></span>
+          <div class="comm-field-wrap comm-field-wrap--units" id="units-list-${e.id}">
+            <!-- rendered by renderUnitsListUI -->
           </div>
-          <div id="units-list-${e.id}"></div>
         </div>
       </div>
       <div class="entry-section">
@@ -940,6 +959,7 @@ function renderSettings() {
                 { key:"sunroof",    rateKey:"sunroof",    label:"Sunroof" },
                 { key:"scrapping",  rateKey:"scrap",      label:"Scrap" },
                 { key:"tubes",      rateKey:"tubes_rate", label:"Tubes (₱50 ea)" },
+                { key:"units",      rateKey:"units_rate", label:"Units" },
               ].map(f => `
                 <div style="display:grid;grid-template-columns:160px 1fr 1fr;gap:10px;align-items:center">
                   <span style="font-size:12px;font-weight:600;color:var(--text)">${f.label}</span>
@@ -965,14 +985,13 @@ function saveSettings() {
       sunroof:     +document.getElementById(`sr-${b}-sunroof`).value    || 0,
       scrap:       +document.getElementById(`sr-${b}-scrap`).value      || 0,
       tubes_rate:  +document.getElementById(`sr-${b}-tubes_rate`).value || 0,
-      // units_rate kept from current state (not shown in UI)
-      units_rate:  COMMISSION_RATES[b] ? (COMMISSION_RATES[b].units_rate || 0) : 0,
+      units_rate:  +document.getElementById(`sr-${b}-units_rate`).value || 0,
       sedan_qty:   +document.getElementById(`sq-${b}-sedan`).value      || 0,
       mpv_qty:     +document.getElementById(`sq-${b}-mpv`).value        || 0,
       sunroof_qty: +document.getElementById(`sq-${b}-sunroof`).value    || 0,
       scrapping_qty: +document.getElementById(`sq-${b}-scrapping`).value|| 0,
       tubes_qty:   +document.getElementById(`sq-${b}-tubes`).value      || 0,
-      units_qty:   COMMISSION_RATES[b] ? (COMMISSION_RATES[b].units_qty || 0) : 0,
+      units_qty:   +document.getElementById(`sq-${b}-units`).value      || 0,
     };
   });
   COMMISSION_RATES = rates;

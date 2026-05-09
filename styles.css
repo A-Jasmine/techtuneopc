@@ -1807,6 +1807,31 @@ textarea:focus {
   grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
   gap: 10px;
 }
+/* Units container spans full width and holds its own nested card grid */
+.comm-field-wrap--units {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  gap: 10px;
+  padding: 0;
+  background: none;
+  border: none;
+}
+/* Each individual unit row card matches the regular comm-field-wrap style */
+.comm-field-wrap--unit-row {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.comm-field-wrap--unit-row label {
+  margin: 0;
+}
+/* Add-unit button card — same width as a normal card */
+.comm-field-wrap--add-unit {
+  display: flex;
+  align-items: flex-start;
+  padding-top: 2px;
+}
 .comm-field-wrap {
   display: flex;
   flex-direction: column;
