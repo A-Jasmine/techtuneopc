@@ -12,15 +12,18 @@ function loadCommissionRates() {
     const saved = localStorage.getItem("commissionRates");
     if (saved) {
       const p = JSON.parse(saved);
-      // backfill units_rate if missing from older saves
-      ["byd","geely","other"].forEach(b => { if (p[b] && p[b].units_rate === undefined) p[b].units_rate = 0; });
+      ["byd","geely","other"].forEach(b => {
+        if (!p[b]) return;
+        if (p[b].scrap      === undefined) p[b].scrap      = 0;
+        if (p[b].units_rate === undefined) p[b].units_rate = 0;
+      });
       return p;
     }
   } catch(e) {}
   return {
-    byd:   { sedan: 150, mpv: 200, sunroof: 50,  units_rate: 0 },
-    geely: { sedan: 200, mpv: 200, sunroof: 200, units_rate: 0 },
-    other: { sedan: 0,   mpv: 0,   sunroof: 0,   units_rate: 0 }
+    byd:   { sedan: 150, mpv: 200, sunroof: 50,  scrap: 0, units_rate: 0 },
+    geely: { sedan: 200, mpv: 200, sunroof: 200, scrap: 0, units_rate: 0 },
+    other: { sedan: 0,   mpv: 0,   sunroof: 0,   scrap: 0, units_rate: 0 }
   };
 }
 function saveCommissionRates(rates) {
@@ -53,21 +56,21 @@ function calcEntry(e, baseRate) {
   const r = e.brand === "byd" ? cr.byd : e.brand === "geely" ? cr.geely : cr.other;
   // Per-field divide: each field can have its own divisor (2, 3, 4…)
   // Falls back to the legacy global divide_by if the per-field key is missing
-  const globalDiv = safeDiv(e.divide_by || 1);
+  const globalDiv  = safeDiv(e.divide_by   || 1);
   const sedanDiv   = safeDiv(e.sedan_div   || globalDiv);
   const mpvDiv     = safeDiv(e.mpv_div     || globalDiv);
   const sunroofDiv = safeDiv(e.sunroof_div || globalDiv);
   const scrapDiv   = safeDiv(e.scrap_div   || globalDiv);
   const tubesDiv   = safeDiv(e.tubes_div   || globalDiv);
+  const unitsDiv   = safeDiv(e.units_div   || globalDiv);
 
-  const unitsDiv = safeDiv(e.units_div || globalDiv);
   const commission = round2(
-    (e.sedan_qty   || 0) * r.sedan   / sedanDiv +
-    (e.mpv_qty     || 0) * r.mpv     / mpvDiv +
-    (e.sunroof_qty || 0) * r.sunroof / sunroofDiv +
-    (e.scrapping_qty || 0) * (e.scrapping_rate || 0) / scrapDiv +
-    (e.tubes_qty   || 0) * TUBE_RATE / tubesDiv +
-    (e.units_qty   || 0) * (r.units_rate || 0) / unitsDiv
+    (e.sedan_qty     || 0) * r.sedan      / sedanDiv +
+    (e.mpv_qty       || 0) * r.mpv        / mpvDiv +
+    (e.sunroof_qty   || 0) * r.sunroof    / sunroofDiv +
+    (e.scrapping_qty || 0) * (r.scrap||0) / scrapDiv +
+    (e.tubes_qty     || 0) * TUBE_RATE    / tubesDiv +
+    (e.units_qty     || 0) * (r.units_rate||0) / unitsDiv
   );
   const otHrs = (+e.ot_hours || 0) + (+e.ot_minutes || 0) / 60;
   const otPay = round2(otHrs * (+e.ot_rate || otRateFromBase(baseRate)));
@@ -417,14 +420,22 @@ async function updatePeriod(id, key, val) {
 }
 
 // =============== ENTRIES ===============
+// Pull current default qty for geely (the default brand on new entries)
+const DEFAULT_UNITS = () => COMMISSION_RATES.geely || {};
 async function addEntry(pid) {
   const p = state.periods.find(x => x.id === pid);
   const emp = state.employees.find(e => e.id === p.employee_id);
   const newEntry = {
     pay_period_id: pid, date: new Date().toISOString().slice(0, 10), location: "Calamba",
     time_in: "08:00", time_out: "17:00", ot_hours: 0, ot_minutes: 0, ot_rate: otRateFromBase(emp.base_rate),
-    brand: "geely", sedan_qty: 0, mpv_qty: 0, sunroof_qty: 0, scrapping_qty: 0, scrapping_rate: 0,
-    tubes_qty: 0, units_qty: 0, units_div: 1, divide_by: 1,
+    brand: "geely",
+    sedan_qty:     DEFAULT_UNITS().sedan_qty     || 0,
+    mpv_qty:       DEFAULT_UNITS().mpv_qty       || 0,
+    sunroof_qty:   DEFAULT_UNITS().sunroof_qty   || 0,
+    scrapping_qty: DEFAULT_UNITS().scrapping_qty || 0,
+    tubes_qty:     DEFAULT_UNITS().tubes_qty     || 0,
+    units_qty:     DEFAULT_UNITS().units_qty     || 0,
+    units_div: 1, divide_by: 1,
     sedan_div: 1, mpv_div: 1, sunroof_div: 1, scrap_div: 1, tubes_div: 1,
     gas_allowance: 0, is_holiday: false, is_offset: false, is_halfday: false,
     holiday_type: "none", notes: ""
@@ -449,7 +460,7 @@ async function delEntry(pid, eid) {
   editPeriod(pid);
 }
 
-const NUMERIC_KEYS = ["sedan_qty","mpv_qty","sunroof_qty","scrapping_qty","scrapping_rate","tubes_qty","units_qty","units_div","divide_by","sedan_div","mpv_div","sunroof_div","scrap_div","tubes_div","ot_hours","ot_minutes","gas_allowance","ot_rate"];
+const NUMERIC_KEYS = ["sedan_qty","mpv_qty","sunroof_qty","scrapping_qty","tubes_qty","units_qty","units_div","divide_by","sedan_div","mpv_div","sunroof_div","scrap_div","tubes_div","ot_hours","ot_minutes","gas_allowance","ot_rate"];
 const BOOL_KEYS = ["is_holiday","is_offset","is_halfday"];
 const STRING_KEYS = ["holiday_type"];
 
@@ -482,6 +493,13 @@ async function updateEntry(pid, eid, key, val) {
     <div class="ps-rose">Deductions<strong>${peso(t.deductions)}</strong></div>`;
   const nb = document.querySelector("#period-detail .net-bar");
   if (nb) nb.innerHTML = `<span>NET PAY</span><span>${peso(t.net)}</span>`;
+}
+
+function stepField(pid, eid, key, delta, btn) {
+  const inp = btn.closest('.comm-field-wrap').querySelector('input[type="number"]');
+  const newVal = Math.max(0, (+inp.value || 0) + delta);
+  inp.value = newVal;
+  updateEntry(pid, eid, key, newVal);
 }
 
 function renderEntries(pid) {
@@ -587,14 +605,17 @@ function renderEntries(pid) {
             <div class="div-row"><span class="div-label">Workers</span>${divSel('scrap_div', e.scrap_div||1)}</div>
           </div>
           <div class="comm-field-wrap">
-            <label>Scrap Rate<input type="number" min="0" value="${e.scrapping_rate||0}" ${isOffsite?"disabled":""} onchange="updateEntry('${pid}','${e.id}','scrapping_rate',this.value)"></label>
-          </div>
-          <div class="comm-field-wrap">
             <label>Tubes Qty (₱50 ea)<input type="number" min="0" value="${e.tubes_qty||0}" ${isOffsite?"disabled":""} onchange="updateEntry('${pid}','${e.id}','tubes_qty',this.value)"></label>
             <div class="div-row"><span class="div-label">Workers</span>${divSel('tubes_div', e.tubes_div||1)}</div>
           </div>
           <div class="comm-field-wrap">
-            <label>Units Qty<input type="number" min="0" value="${e.units_qty||0}" ${isOffsite?"disabled":""} onchange="updateEntry('${pid}','${e.id}','units_qty',this.value)"></label>
+            <label>Units Qty
+              <div class="stepper-wrap">
+                <button type="button" class="stepper-btn" ${isOffsite?"disabled":""} onclick="stepField('${pid}','${e.id}','units_qty',-1,this)">−</button>
+                <input type="number" min="0" value="${e.units_qty||0}" ${isOffsite?"disabled":""} id="units-${e.id}" onchange="updateEntry('${pid}','${e.id}','units_qty',this.value)">
+                <button type="button" class="stepper-btn" ${isOffsite?"disabled":""} onclick="stepField('${pid}','${e.id}','units_qty',1,this)">+</button>
+              </div>
+            </label>
             <div class="div-row"><span class="div-label">Workers</span>${divSel('units_div', e.units_div||1)}</div>
           </div>
         </div>
@@ -808,22 +829,38 @@ function renderSettings() {
   const r = COMMISSION_RATES;
   const el = document.getElementById("settings-content");
   if (!el) return;
+  const BRANDS = ["byd","geely","other"];
   el.innerHTML = `
     <div class="card">
       <div class="card-head">
-        <div><h2><i data-lucide="sliders-horizontal"></i> Commission Rates</h2>
-        <small>Rates per unit. Changes are saved to your browser and take effect immediately.</small></div>
+        <div><h2><i data-lucide="sliders-horizontal"></i> Commission Rates &amp; Default Qty</h2>
+        <small>Rate per unit (₱) and default qty pre-filled on new entries. Saved to browser.</small></div>
         <button class="btn primary" onclick="saveSettings()"><i data-lucide="save"></i> Save Changes</button>
       </div>
-      <div style="display:grid;gap:20px;padding:0 4px">
-        ${["byd","geely","other"].map(brand => `
+      <div style="display:grid;gap:24px;padding:0 4px">
+        ${BRANDS.map(brand => `
           <div>
-            <div style="font-weight:700;font-size:13px;text-transform:uppercase;letter-spacing:.8px;margin-bottom:10px;color:var(--text-soft)">${brand.toUpperCase()}</div>
-            <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px">
-              <label>Sedan / CUV (₱)<input type="number" id="sr-${brand}-sedan" min="0" value="${r[brand].sedan}"></label>
-              <label>MPV (₱)<input type="number" id="sr-${brand}-mpv" min="0" value="${r[brand].mpv}"></label>
-              <label>Sunroof (₱)<input type="number" id="sr-${brand}-sunroof" min="0" value="${r[brand].sunroof}"></label>
-              <label>Units (₱)<input type="number" id="sr-${brand}-units_rate" min="0" value="${r[brand].units_rate||0}"></label>
+            <div style="font-weight:700;font-size:13px;text-transform:uppercase;letter-spacing:.8px;margin-bottom:12px;color:var(--text-soft)">${brand.toUpperCase()}</div>
+            <div style="display:grid;gap:8px">
+              <div style="display:grid;grid-template-columns:160px 1fr 1fr;gap:10px;align-items:end;padding-bottom:4px;border-bottom:1px solid var(--border)">
+                <span style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:var(--text-dim)">Field</span>
+                <span style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:var(--text-dim)">Rate per unit (₱)</span>
+                <span style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:var(--text-dim)">Default Qty</span>
+              </div>
+              ${[
+                { key:"sedan",      rateKey:"sedan",      label:"Sedan / CUV" },
+                { key:"mpv",        rateKey:"mpv",        label:"MPV" },
+                { key:"sunroof",    rateKey:"sunroof",    label:"Sunroof" },
+                { key:"scrapping",  rateKey:"scrap",      label:"Scrap" },
+                { key:"tubes",      rateKey:"tubes_rate", label:"Tubes (₱50 ea)" },
+                { key:"units",      rateKey:"units_rate", label:"Units" },
+              ].map(f => `
+                <div style="display:grid;grid-template-columns:160px 1fr 1fr;gap:10px;align-items:center">
+                  <span style="font-size:12px;font-weight:600;color:var(--text)">${f.label}</span>
+                  <input type="number" id="sr-${brand}-${f.rateKey}" min="0" value="${r[brand][f.rateKey]||0}" placeholder="₱ rate">
+                  <input type="number" id="sq-${brand}-${f.key}" min="0" value="${r[brand][f.key+'_qty']||0}" placeholder="default qty">
+                </div>
+              `).join("")}
             </div>
           </div>
         `).join('<hr style="border:none;border-top:1px solid var(--border);margin:4px 0">')}
@@ -837,16 +874,24 @@ function saveSettings() {
   const rates = {};
   brands.forEach(b => {
     rates[b] = {
-      sedan:      +document.getElementById(`sr-${b}-sedan`).value || 0,
-      mpv:        +document.getElementById(`sr-${b}-mpv`).value || 0,
-      sunroof:    +document.getElementById(`sr-${b}-sunroof`).value || 0,
-      units_rate: +document.getElementById(`sr-${b}-units_rate`).value || 0,
+      sedan:       +document.getElementById(`sr-${b}-sedan`).value      || 0,
+      mpv:         +document.getElementById(`sr-${b}-mpv`).value        || 0,
+      sunroof:     +document.getElementById(`sr-${b}-sunroof`).value    || 0,
+      scrap:       +document.getElementById(`sr-${b}-scrap`).value      || 0,
+      tubes_rate:  +document.getElementById(`sr-${b}-tubes_rate`).value || 0,
+      units_rate:  +document.getElementById(`sr-${b}-units_rate`).value || 0,
+      sedan_qty:   +document.getElementById(`sq-${b}-sedan`).value      || 0,
+      mpv_qty:     +document.getElementById(`sq-${b}-mpv`).value        || 0,
+      sunroof_qty: +document.getElementById(`sq-${b}-sunroof`).value    || 0,
+      scrapping_qty: +document.getElementById(`sq-${b}-scrapping`).value|| 0,
+      tubes_qty:   +document.getElementById(`sq-${b}-tubes`).value      || 0,
+      units_qty:   +document.getElementById(`sq-${b}-units`).value      || 0,
     };
   });
   COMMISSION_RATES = rates;
   BYD = rates.byd; GEELY = rates.geely;
   saveCommissionRates(rates);
-  toast("Commission rates saved ✓");
+  toast("Commission rates & defaults saved ✓");
 }
 
 // =============== EXPORTS (XLSX with styling) ===============
@@ -915,8 +960,8 @@ function exportCSV(pid) {
   aoa.push([xText("")]);
 
   const dailyR = aoa.length;
-  aoa.push([xSection("DAILY BREAKDOWN")]); pushMerge(merges, dailyR, 0, dailyR, 22);
-  const headers = ["Date", "Location", "Time In", "Time Out", "Type", "Base Pay", "OT Hrs", "OT Min", "Total OT", "Brand", "Sedan", "MPV", "Sunroof", "Scrap", "Tubes", "Units", "Div", "Commission", "OT Pay", "Holiday", "Gas", "Day Total", "Notes"];
+  aoa.push([xSection("DAILY BREAKDOWN")]); pushMerge(merges, dailyR, 0, dailyR, 21);
+  const headers = ["Date", "Location", "Time In", "Time Out", "Type", "Base Pay", "OT Hrs", "OT Min", "Total OT", "Brand", "Sedan", "MPV", "Sunroof", "Scrap", "Tubes", "Div", "Commission", "OT Pay", "Holiday", "Gas", "Day Total", "Notes"];
   aoa.push(headers.map(h => xHead(h)));
   p.entries.forEach(e => {
     const c = calcEntry(e, emp.base_rate);
@@ -927,7 +972,7 @@ function exportCSV(pid) {
     aoa.push([
       xText(e.date), xText(e.location), xText(to12h(e.time_in) || "—"), xText(to12h(e.time_out) || "—"), xText(type),
       xNum(c.base), xText(String(otH)), xText(String(otM)), xText(totalOTLabel), xText((e.brand || "").toUpperCase()),
-      xText(String(e.sedan_qty || 0)), xText(String(e.mpv_qty || 0)), xText(String(e.sunroof_qty || 0)), xText(String(e.scrapping_qty || 0)), xText(String(e.tubes_qty || 0)), xText(String(e.units_qty || 0)), xText(String(e.divide_by || 1)),
+      xText(String(e.sedan_qty || 0)), xText(String(e.mpv_qty || 0)), xText(String(e.sunroof_qty || 0)), xText(String(e.scrapping_qty || 0)), xText(String(e.tubes_qty || 0)), xText(String(e.divide_by || 1)),
       xNum(c.commission), xNum(c.otPay), xNum(c.holiday), xNum(c.gas), xNum(c.total), xText(e.notes || "")
     ]);
   });
@@ -940,13 +985,13 @@ function exportCSV(pid) {
   aoa.push([
     xTotal("TOTALS"), xTotal(""), xTotal(""), xTotal(""), xTotal(""),
     xTotal(""), xTotalNum(normOTH), xTotalNum(normOTM), xTotal(formatOT(normOTH, normOTM)), xTotal(""),
-    xTotal(""), xTotal(""), xTotal(""), xTotal(""), xTotal(""), xTotal(""), xTotal(""),
+    xTotal(""), xTotal(""), xTotal(""), xTotal(""), xTotal(""), xTotal(""),
     xTotalNum(t.commission), xTotalNum(t.ot), xTotalNum(t.holiday), xTotalNum(t.gas), xTotalNum(t.earnings), xTotal("")
   ]);
 
   const ws = XLSX.utils.aoa_to_sheet(aoa.map(row => row.map(cell => cell || xText(""))));
   ws['!merges'] = merges;
-  ws['!cols'] = [{ wch: 12 }, { wch: 14 }, { wch: 10 }, { wch: 10 }, { wch: 9 }, { wch: 11 }, { wch: 7 }, { wch: 7 }, { wch: 9 }, { wch: 8 }, { wch: 7 }, { wch: 7 }, { wch: 8 }, { wch: 7 }, { wch: 7 }, { wch: 7 }, { wch: 6 }, { wch: 13 }, { wch: 11 }, { wch: 11 }, { wch: 10 }, { wch: 13 }, { wch: 22 }];
+  ws['!cols'] = [{ wch: 12 }, { wch: 14 }, { wch: 10 }, { wch: 10 }, { wch: 9 }, { wch: 11 }, { wch: 7 }, { wch: 7 }, { wch: 9 }, { wch: 8 }, { wch: 7 }, { wch: 7 }, { wch: 8 }, { wch: 7 }, { wch: 7 }, { wch: 6 }, { wch: 13 }, { wch: 11 }, { wch: 11 }, { wch: 10 }, { wch: 13 }, { wch: 22 }];
   ws['!rows'] = ws['!rows'] || [];
   ws['!rows'][0] = { hpt: 28 };
 
@@ -1149,7 +1194,7 @@ function exportPDF(pid) {
   // Columns must sum to ≤ 761. Total below = 761.
   doc.autoTable({
     startY: y, margin: { left: margin, right: margin }, theme: "grid",
-    head: [["Date", "Location", "In", "Out", "Type", "Brand", "Sed", "MPV", "Sun", "Scr", "Tub", "Units", "OT Hrs", "OT Min", "Commission", "OT Pay", "Holiday", "Gas", "Total"]],
+    head: [["Date", "Location", "In", "Out", "Type", "Brand", "Sed", "MPV", "Sun", "Scr", "Tub", "OT Hrs", "OT Min", "Commission", "OT Pay", "Holiday", "Gas", "Total"]],
     body: p.entries.map(e => {
       const c = calcEntry(e, emp.base_rate);
       const holidayType = e.holiday_type || (e.is_holiday ? "onsite" : "none");
@@ -1160,7 +1205,7 @@ function exportPDF(pid) {
       const qd = (qty, div) => { const q = qty||0; const d = div||1; return q ? (d>1?`${q}÷${d}`:`${q}`) : "—"; };
       return [e.date, e.location || "—", to12h(e.time_in)||"—", to12h(e.time_out)||"—", type, (e.brand||"").toUpperCase(),
         qd(e.sedan_qty, e.sedan_div), qd(e.mpv_qty, e.mpv_div), qd(e.sunroof_qty, e.sunroof_div),
-        qd(e.scrapping_qty, e.scrap_div), qd(e.tubes_qty, e.tubes_div), qd(e.units_qty, e.units_div),
+        qd(e.scrapping_qty, e.scrap_div), qd(e.tubes_qty, e.tubes_div),
         otH||"—", otM||"—",
         fmt(c.commission), fmt(c.otPay), fmt(c.holiday), fmt(c.gas), fmt(c.total)];
     }),
@@ -1174,19 +1219,18 @@ function exportPDF(pid) {
       3: { cellWidth: 40 },  // Out
       4: { cellWidth: 42 },  // Type
       5: { cellWidth: 36 },  // Brand
-      6: { cellWidth: 27, halign: "center" },  // Sed
-      7: { cellWidth: 27, halign: "center" },  // MPV
-      8: { cellWidth: 27, halign: "center" },  // Sun
-      9: { cellWidth: 27, halign: "center" },  // Scr
-      10: { cellWidth: 27, halign: "center" }, // Tub
-      11: { cellWidth: 27, halign: "center" }, // Units
-      12: { cellWidth: 27, halign: "center" }, // OT Hrs
-      13: { cellWidth: 27, halign: "center" }, // OT Min
-      14: { cellWidth: 62, halign: "right" },  // Commission
-      15: { cellWidth: 50, halign: "right" },  // OT Pay
-      16: { cellWidth: 47, halign: "right" },  // Holiday
-      17: { cellWidth: 40, halign: "right" },  // Gas
-      18: { cellWidth: 56, halign: "right", fontStyle: "bold" } // Total
+      6: { cellWidth: 30, halign: "center" },  // Sed
+      7: { cellWidth: 30, halign: "center" },  // MPV
+      8: { cellWidth: 30, halign: "center" },  // Sun
+      9: { cellWidth: 30, halign: "center" },  // Scr
+      10: { cellWidth: 30, halign: "center" }, // Tub
+      11: { cellWidth: 30, halign: "center" }, // OT Hrs
+      12: { cellWidth: 30, halign: "center" }, // OT Min
+      13: { cellWidth: 62, halign: "right" },  // Commission
+      14: { cellWidth: 50, halign: "right" },  // OT Pay
+      15: { cellWidth: 47, halign: "right" },  // Holiday
+      16: { cellWidth: 40, halign: "right" },  // Gas
+      17: { cellWidth: 56, halign: "right", fontStyle: "bold" } // Total
     },
     didDrawPage: () => {
       doc.setFontSize(8); doc.setTextColor(110); doc.setFont("helvetica", "normal");

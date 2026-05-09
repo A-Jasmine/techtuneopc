@@ -1863,3 +1863,44 @@ textarea:focus {
   padding: 3px 10px;
   pointer-events: none;
 }
+
+/* ── Units Qty stepper ── */
+.stepper-wrap {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  border: 1.5px solid var(--border-hi);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+  background: var(--surface);
+}
+.stepper-wrap input[type="number"] {
+  flex: 1;
+  min-width: 0;
+  border: none;
+  border-radius: 0;
+  text-align: center;
+  font-weight: 600;
+  font-size: 14px;
+  padding: 6px 4px;
+  -moz-appearance: textfield;
+}
+.stepper-wrap input[type="number"]::-webkit-outer-spin-button,
+.stepper-wrap input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+.stepper-btn {
+  flex-shrink: 0;
+  width: 34px;
+  height: 34px;
+  border: none;
+  background: var(--surface-3);
+  color: var(--text);
+  font-size: 18px;
+  font-weight: 700;
+  cursor: pointer;
+  line-height: 1;
+  transition: background .15s;
+  padding: 0;
+}
+.stepper-btn:hover:not(:disabled) { background: var(--border-hi); }
+.stepper-btn:active:not(:disabled) { background: var(--blue); color: #fff; }
+.stepper-btn:disabled { opacity: .35; cursor: not-allowed; }
