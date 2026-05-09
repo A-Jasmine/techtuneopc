@@ -1902,3 +1902,29 @@ textarea:focus {
   padding: 6px 8px;
   height: 36px;
 }
+
+/* ── Units dynamic list ── */
+.units-list-section {
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+}
+.units-list-header {
+  margin-bottom: 8px;
+}
+.units-list-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+  flex-wrap: nowrap;
+}
+.units-list-row input[type="text"],
+.units-list-row input:not([type="number"]) {
+  flex: 1;
+  min-width: 80px;
+}
+.units-list-row input[type="number"] {
+  width: 60px;
+  text-align: center;
+}

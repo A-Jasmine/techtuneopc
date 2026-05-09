@@ -2,7 +2,6 @@
 const state = { employees: [], periods: [] };
 
 const round2 = n => Math.round((n || 0) * 100) / 100;
-function tryParseJSON(v) { try { return JSON.parse(v); } catch(e) { return []; } }
 const peso = n => "\u20B1" + (n || 0).toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const fmt = n => (n || 0).toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
@@ -14,15 +13,17 @@ function loadCommissionRates() {
     if (saved) {
       const p = JSON.parse(saved);
       ["byd","geely","other"].forEach(b => {
-        if (p[b] && p[b].units_rate === undefined) p[b].units_rate = 0;
+        if (!p[b]) return;
+        if (p[b].scrap      === undefined) p[b].scrap      = 0;
+        if (p[b].units_rate === undefined) p[b].units_rate = 0;
       });
       return p;
     }
   } catch(e) {}
   return {
-    byd:   { sedan: 150, mpv: 200, sunroof: 50,  units_rate: 0 },
-    geely: { sedan: 200, mpv: 200, sunroof: 200, units_rate: 0 },
-    other: { sedan: 0,   mpv: 0,   sunroof: 0,   units_rate: 0 }
+    byd:   { sedan: 150, mpv: 200, sunroof: 50,  scrap: 0, units_rate: 0 },
+    geely: { sedan: 200, mpv: 200, sunroof: 200, scrap: 0, units_rate: 0 },
+    other: { sedan: 0,   mpv: 0,   sunroof: 0,   scrap: 0, units_rate: 0 }
   };
 }
 function saveCommissionRates(rates) {
@@ -50,31 +51,35 @@ function calcEntryBase(e, baseRate) {
   return e.is_halfday ? round2(br / 2) : br;
 }
 function safeDiv(n) { return n > 0 ? n : 1; }
+
+// Parse units_list from entry (stored as JSON string or array)
+function parseUnitsList(e) {
+  if (Array.isArray(e.units_list)) return e.units_list;
+  if (typeof e.units_list === "string" && e.units_list) {
+    try { return JSON.parse(e.units_list); } catch(ex) {}
+  }
+  return [];
+}
+
 function calcEntry(e, baseRate) {
   const cr = COMMISSION_RATES;
   const r = e.brand === "byd" ? cr.byd : e.brand === "geely" ? cr.geely : cr.other;
-  // Per-field divide: each field can have its own divisor (2, 3, 4…)
-  // Falls back to the legacy global divide_by if the per-field key is missing
-  const globalDiv = safeDiv(e.divide_by || 1);
+  const globalDiv  = safeDiv(e.divide_by   || 1);
   const sedanDiv   = safeDiv(e.sedan_div   || globalDiv);
   const mpvDiv     = safeDiv(e.mpv_div     || globalDiv);
   const sunroofDiv = safeDiv(e.sunroof_div || globalDiv);
-  const scrapDiv   = safeDiv(e.scrap_div   || globalDiv);
   const tubesDiv   = safeDiv(e.tubes_div   || globalDiv);
 
-  const unitsItems = Array.isArray(e.units_items) ? e.units_items
-    : (e.units_items ? tryParseJSON(e.units_items) : []);
-  const unitsCommission = unitsItems.reduce((sum, u) => {
-    const qty = +u.qty || 0;
-    const workers = Math.max(1, +u.workers || 1);
-    const rate = +u.rate || (r.units_rate || 0);
-    return sum + round2(qty * rate / workers);
+  // Units list: each row has qty and div, rate comes from brand's units_rate
+  const unitsList = parseUnitsList(e);
+  const unitsCommission = unitsList.reduce((sum, u) => {
+    return sum + round2((+u.qty || 0) * (r.units_rate || 0) / safeDiv(+u.div || 1));
   }, 0);
+
   const commission = round2(
     (e.sedan_qty   || 0) * r.sedan   / sedanDiv +
     (e.mpv_qty     || 0) * r.mpv     / mpvDiv +
     (e.sunroof_qty || 0) * r.sunroof / sunroofDiv +
-    (e.scrapping_qty || 0) * (e.scrapping_rate || 0) / scrapDiv +
     (e.tubes_qty   || 0) * TUBE_RATE / tubesDiv +
     unitsCommission
   );
@@ -111,10 +116,7 @@ async function loadAll() {
   state.employees = emps.data || [];
   state.periods = (pers.data || []).map(p => ({
     ...p,
-    entries: (ents.data || []).filter(e => e.pay_period_id === p.id).map(e => ({
-      ...e,
-      units_items: Array.isArray(e.units_items) ? e.units_items : tryParseJSON(e.units_items || '[]')
-    })),
+    entries: (ents.data || []).filter(e => e.pay_period_id === p.id),
     deductions: (deds.data || []).filter(d => d.pay_period_id === p.id),
   }));
 }
@@ -429,16 +431,23 @@ async function updatePeriod(id, key, val) {
 }
 
 // =============== ENTRIES ===============
+// Pull current default qty for geely (the default brand on new entries)
+const DEFAULT_UNITS = () => COMMISSION_RATES.geely || {};
 async function addEntry(pid) {
   const p = state.periods.find(x => x.id === pid);
   const emp = state.employees.find(e => e.id === p.employee_id);
   const newEntry = {
     pay_period_id: pid, date: new Date().toISOString().slice(0, 10), location: "Calamba",
     time_in: "08:00", time_out: "17:00", ot_hours: 0, ot_minutes: 0, ot_rate: otRateFromBase(emp.base_rate),
-    brand: "geely", sedan_qty: 0, mpv_qty: 0, sunroof_qty: 0, scrapping_qty: 0, scrapping_rate: 0,
-    tubes_qty: 0, divide_by: 1,
-    sedan_div: 1, mpv_div: 1, sunroof_div: 1, scrap_div: 1, tubes_div: 1,
-    gas_allowance: 0, units_items: [], is_holiday: false, is_offset: false, is_halfday: false,
+    brand: "geely",
+    sedan_qty:     DEFAULT_UNITS().sedan_qty     || 0,
+    mpv_qty:       DEFAULT_UNITS().mpv_qty       || 0,
+    sunroof_qty:   DEFAULT_UNITS().sunroof_qty   || 0,
+    tubes_qty:     DEFAULT_UNITS().tubes_qty     || 0,
+    units_list: JSON.stringify([]),
+    divide_by: 1,
+    sedan_div: 1, mpv_div: 1, sunroof_div: 1, tubes_div: 1,
+    gas_allowance: 0, is_holiday: false, is_offset: false, is_halfday: false,
     holiday_type: "none", notes: ""
   };
   const { data, error } = await sb.from('entries').insert(newEntry).select().single();
@@ -461,7 +470,7 @@ async function delEntry(pid, eid) {
   editPeriod(pid);
 }
 
-const NUMERIC_KEYS = ["sedan_qty","mpv_qty","sunroof_qty","scrapping_qty","scrapping_rate","tubes_qty","divide_by","sedan_div","mpv_div","sunroof_div","scrap_div","tubes_div","ot_hours","ot_minutes","gas_allowance","ot_rate"];
+const NUMERIC_KEYS = ["sedan_qty","mpv_qty","sunroof_qty","tubes_qty","divide_by","sedan_div","mpv_div","sunroof_div","tubes_div","ot_hours","ot_minutes","gas_allowance","ot_rate"];
 const BOOL_KEYS = ["is_holiday","is_offset","is_halfday"];
 const STRING_KEYS = ["holiday_type"];
 
@@ -470,12 +479,17 @@ async function updateEntry(pid, eid, key, val) {
   const e = p.entries.find(x => x.id === eid);
   if (NUMERIC_KEYS.includes(key)) val = +val || 0;
   if (BOOL_KEYS.includes(key)) val = !!val;
-  // STRING_KEYS stored as-is
-  e[key] = val;
-  // units_items stored as JSONB in Supabase — pass array directly
-  const dbVal = key === "units_items" ? val : val;
-  const { error } = await sb.from('entries').update({ [key]: dbVal }).eq('id', eid);
-  if (error) toast("Save failed: " + error.message);
+  if (key === "units_list") {
+    // val is already the parsed array; store serialized for DB, keep array in memory
+    e.units_list = val;
+    const serialized = JSON.stringify(val);
+    const { error } = await sb.from('entries').update({ units_list: serialized }).eq('id', eid);
+    if (error) toast("Save failed: " + error.message);
+  } else {
+    e[key] = val;
+    const { error } = await sb.from('entries').update({ [key]: val }).eq('id', eid);
+    if (error) toast("Save failed: " + error.message);
+  }
 
   const emp = state.employees.find(x => x.id === p.employee_id);
   const c = calcEntry(e, emp.base_rate);
@@ -498,56 +512,87 @@ async function updateEntry(pid, eid, key, val) {
   if (nb) nb.innerHTML = `<span>NET PAY</span><span>${peso(t.net)}</span>`;
 }
 
-
-function addUnitItem(pid, eid) {
-  const p = state.periods.find(x => x.id === pid);
-  const e = p.entries.find(x => x.id === eid);
-  if (!Array.isArray(e.units_items)) e.units_items = [];
-  e.units_items = [...e.units_items, { label: "", qty: 0, workers: 1 }];
-  updateEntry(pid, eid, "units_items", e.units_items);
-  // re-render just the units list
-  const listEl = document.getElementById("units-list-" + eid);
-  if (listEl) renderUnitsList(pid, eid);
-  lucide.createIcons();
+function stepField(pid, eid, key, delta, btn) {
+  const inp = btn.closest('.comm-field-wrap').querySelector('input[type="number"]');
+  const newVal = Math.max(0, (+inp.value || 0) + delta);
+  inp.value = newVal;
+  updateEntry(pid, eid, key, newVal);
 }
 
-function removeUnitItem(pid, eid, idx) {
+// Units list helpers
+function addUnitsRow(pid, eid) {
   const p = state.periods.find(x => x.id === pid);
   const e = p.entries.find(x => x.id === eid);
-  e.units_items = (e.units_items || []).filter((_, i) => i !== idx);
-  updateEntry(pid, eid, "units_items", e.units_items);
-  renderUnitsList(pid, eid);
+  const list = parseUnitsList(e);
+  list.push({ desc: "", qty: 0, div: 1 });
+  updateEntry(pid, eid, "units_list", list);
+  // Re-render just the units list section
+  renderUnitsListUI(pid, eid);
+  updateEntryTotals(pid, eid);
+}
+function removeUnitsRow(pid, eid, idx) {
+  const p = state.periods.find(x => x.id === pid);
+  const e = p.entries.find(x => x.id === eid);
+  const list = parseUnitsList(e);
+  list.splice(idx, 1);
+  updateEntry(pid, eid, "units_list", list);
+  renderUnitsListUI(pid, eid);
+  updateEntryTotals(pid, eid);
+}
+function updateUnitsRow(pid, eid, idx, field, val) {
+  const p = state.periods.find(x => x.id === pid);
+  const e = p.entries.find(x => x.id === eid);
+  const list = parseUnitsList(e);
+  if (!list[idx]) return;
+  if (field === "qty" || field === "div") val = +val || (field === "div" ? 1 : 0);
+  list[idx][field] = val;
+  updateEntry(pid, eid, "units_list", list);
+  updateEntryTotals(pid, eid);
+}
+function renderUnitsListUI(pid, eid) {
+  const p = state.periods.find(x => x.id === pid);
+  const e = p.entries.find(x => x.id === eid);
+  const wrap = document.getElementById(`units-list-${eid}`);
+  if (!wrap) return;
+  const list = parseUnitsList(e);
+  const cr = COMMISSION_RATES;
+  const r = e.brand === "byd" ? cr.byd : e.brand === "geely" ? cr.geely : cr.other;
+  wrap.innerHTML = list.map((u, i) => `
+    <div class="units-list-row">
+      <input placeholder="Description" value="${u.desc || ""}" style="flex:1;min-width:80px" onchange="updateUnitsRow('${pid}','${eid}',${i},'desc',this.value)">
+      <input type="number" min="0" value="${u.qty || 0}" style="width:60px" placeholder="Qty" onchange="updateUnitsRow('${pid}','${eid}',${i},'qty',this.value)">
+      <select style="width:70px;font-size:12px" title="÷ Workers" onchange="updateUnitsRow('${pid}','${eid}',${i},'div',this.value)">
+        <option value="1" ${(+u.div||1)===1?"selected":""}>÷1</option>
+        <option value="2" ${(+u.div||1)===2?"selected":""}>÷2</option>
+        <option value="3" ${(+u.div||1)===3?"selected":""}>÷3</option>
+        <option value="4" ${(+u.div||1)===4?"selected":""}>÷4</option>
+      </select>
+      <span style="font-size:11px;color:var(--text-dim);white-space:nowrap">= ₱${round2((+u.qty||0)*(r.units_rate||0)/safeDiv(+u.div||1)).toLocaleString("en-PH",{minimumFractionDigits:2})}</span>
+      <button type="button" class="btn danger" style="padding:4px 8px;min-width:0" onclick="removeUnitsRow('${pid}','${eid}',${i})"><i data-lucide="trash-2"></i></button>
+    </div>`).join("") + `
+    <button type="button" class="btn" style="margin-top:6px;font-size:12px" onclick="addUnitsRow('${pid}','${eid}')"><i data-lucide="plus"></i> Add Row</button>`;
   lucide.createIcons();
 }
-
-function updateUnitItem(pid, eid, idx, field, val) {
+function updateEntryTotals(pid, eid) {
   const p = state.periods.find(x => x.id === pid);
   const e = p.entries.find(x => x.id === eid);
-  if (!e.units_items[idx]) return;
-  e.units_items[idx][field] = (field === "qty" || field === "workers") ? (+val || 0) : val;
-  updateEntry(pid, eid, "units_items", e.units_items);
-}
-
-function renderUnitsList(pid, eid) {
-  const p = state.periods.find(x => x.id === pid);
-  const e = p.entries.find(x => x.id === eid);
-  const listEl = document.getElementById("units-list-" + eid);
-  if (!listEl) return;
-  listEl.innerHTML = (e.units_items || []).map((u, i) => `
-    <div class="units-row" data-idx="${i}">
-      <input class="units-label-inp" placeholder="Description (e.g. Job A)" value="${u.label||''}" onchange="updateUnitItem('${pid}','${eid}',${i},'label',this.value)">
-      <div class="units-qty-wrap">
-        <label class="units-sub-label">Qty</label>
-        <input type="number" min="0" class="units-qty-inp" value="${u.qty||0}" onchange="updateUnitItem('${pid}','${eid}',${i},'qty',this.value)">
-      </div>
-      <div class="units-qty-wrap">
-        <label class="units-sub-label">÷ Workers</label>
-        <input type="number" min="1" class="units-qty-inp" value="${u.workers||1}" onchange="updateUnitItem('${pid}','${eid}',${i},'workers',this.value)">
-      </div>
-      <button class="btn danger units-del-btn" onclick="removeUnitItem('${pid}','${eid}',${i})"><i data-lucide="trash-2"></i></button>
-    </div>
-  `).join('');
-  lucide.createIcons();
+  const emp = state.employees.find(x => x.id === p.employee_id);
+  const c = calcEntry(e, emp.base_rate);
+  const tot = document.querySelector(`#entry-${eid} .entry-total`);
+  if (tot) tot.textContent = "Total: " + peso(c.total);
+  const totals = document.querySelector(`#entry-${eid} .entry-totals`);
+  if (totals) totals.innerHTML = `<span>Base: <strong>${peso(c.base)}</strong></span><span>Com: <strong>${peso(c.commission)}</strong></span><span>OT: <strong>${peso(c.otPay)}</strong></span><span>Holiday: <strong>${peso(c.holiday)}</strong></span>`;
+  const t = calcPeriod(p);
+  const sum = document.querySelector("#period-detail .period-summary");
+  if (sum) sum.innerHTML = `
+    <div class="ps-blue">Basic<strong>${peso(t.basic)}</strong></div>
+    <div class="ps-amber">OT<strong>${peso(t.ot)}</strong></div>
+    <div class="ps-green">Commission<strong>${peso(t.commission)}</strong></div>
+    <div class="ps-purple">Holiday<strong>${peso(t.holiday)}</strong></div>
+    <div class="ps-cyan">Gas<strong>${peso(t.gas)}</strong></div>
+    <div class="ps-rose">Deductions<strong>${peso(t.deductions)}</strong></div>`;
+  const nb = document.querySelector("#period-detail .net-bar");
+  if (nb) nb.innerHTML = `<span>NET PAY</span><span>${peso(t.net)}</span>`;
 }
 
 function renderEntries(pid) {
@@ -649,37 +694,16 @@ function renderEntries(pid) {
             <div class="div-row"><span class="div-label">Workers</span>${divSel('sunroof_div', e.sunroof_div||1)}</div>
           </div>
           <div class="comm-field-wrap">
-            <label>Scrap Qty<input type="number" min="0" value="${e.scrapping_qty||0}" ${isOffsite?"disabled":""} onchange="updateEntry('${pid}','${e.id}','scrapping_qty',this.value)"></label>
-            <div class="div-row"><span class="div-label">Workers</span>${divSel('scrap_div', e.scrap_div||1)}</div>
-          </div>
-          <div class="comm-field-wrap">
-            <label>Scrap Rate<input type="number" min="0" value="${e.scrapping_rate||0}" ${isOffsite?"disabled":""} onchange="updateEntry('${pid}','${e.id}','scrapping_rate',this.value)"></label>
-          </div>
-          <div class="comm-field-wrap">
             <label>Tubes Qty (₱50 ea)<input type="number" min="0" value="${e.tubes_qty||0}" ${isOffsite?"disabled":""} onchange="updateEntry('${pid}','${e.id}','tubes_qty',this.value)"></label>
             <div class="div-row"><span class="div-label">Workers</span>${divSel('tubes_div', e.tubes_div||1)}</div>
           </div>
         </div>
-      </div>
-      <div class="entry-section" style="${isOffsite?offOpacity:''}">
-        <h4>Units</h4>
-        <div class="units-list" id="units-list-${e.id}">
-          ${(e.units_items||[]).map((u,i) => `
-            <div class="units-row" data-idx="${i}">
-              <input class="units-label-inp" placeholder="Description (e.g. Job A)" value="${u.label||''}" onchange="updateUnitItem('${pid}','${e.id}',${i},'label',this.value)">
-              <div class="units-qty-wrap">
-                <label class="units-sub-label">Qty</label>
-                <input type="number" min="0" class="units-qty-inp" value="${u.qty||0}" onchange="updateUnitItem('${pid}','${e.id}',${i},'qty',this.value)">
-              </div>
-              <div class="units-qty-wrap">
-                <label class="units-sub-label">÷ Workers</label>
-                <input type="number" min="1" class="units-qty-inp" value="${u.workers||1}" onchange="updateUnitItem('${pid}','${e.id}',${i},'workers',this.value)">
-              </div>
-              <button class="btn danger units-del-btn" onclick="removeUnitItem('${pid}','${e.id}',${i})"><i data-lucide="trash-2"></i></button>
-            </div>
-          `).join('')}
+        <div class="units-list-section" style="${isOffsite?offOpacity:''}">
+          <div class="units-list-header">
+            <span style="font-size:11px;font-weight:700;letter-spacing:.6px;text-transform:uppercase;color:var(--text-dim)">Units Qty <span style="font-weight:400;color:var(--text-dim)">(₱${(r.units_rate||0).toLocaleString()}/unit)</span></span>
+          </div>
+          <div id="units-list-${e.id}"></div>
         </div>
-        <button class="btn" style="margin-top:8px" onclick="addUnitItem('${pid}','${e.id}')"><i data-lucide="plus"></i> Add Units</button>
       </div>
       <div class="entry-section">
         <h4>Extras</h4>
@@ -695,6 +719,8 @@ function renderEntries(pid) {
     </div>`;
   }).join("");
   lucide.createIcons();
+  // Populate dynamic units lists for each entry
+  p.entries.forEach(e => renderUnitsListUI(pid, e.id));
 }
 
 // Handle holiday type change — syncs legacy is_holiday flag too
@@ -890,22 +916,37 @@ function renderSettings() {
   const r = COMMISSION_RATES;
   const el = document.getElementById("settings-content");
   if (!el) return;
+  const BRANDS = ["byd","geely","other"];
   el.innerHTML = `
     <div class="card">
       <div class="card-head">
-        <div><h2><i data-lucide="sliders-horizontal"></i> Commission Rates</h2>
-        <small>Rates per unit. Changes are saved to your browser and take effect immediately.</small></div>
+        <div><h2><i data-lucide="sliders-horizontal"></i> Commission Rates &amp; Default Qty</h2>
+        <small>Rate per unit (₱) and default qty pre-filled on new entries. Saved to browser.</small></div>
         <button class="btn primary" onclick="saveSettings()"><i data-lucide="save"></i> Save Changes</button>
       </div>
-      <div style="display:grid;gap:20px;padding:0 4px">
-        ${["byd","geely","other"].map(brand => `
+      <div style="display:grid;gap:24px;padding:0 4px">
+        ${BRANDS.map(brand => `
           <div>
-            <div style="font-weight:700;font-size:13px;text-transform:uppercase;letter-spacing:.8px;margin-bottom:10px;color:var(--text-soft)">${brand.toUpperCase()}</div>
-            <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px">
-              <label>Sedan / CUV (₱)<input type="number" id="sr-${brand}-sedan" min="0" value="${r[brand].sedan}"></label>
-              <label>MPV (₱)<input type="number" id="sr-${brand}-mpv" min="0" value="${r[brand].mpv}"></label>
-              <label>Sunroof (₱)<input type="number" id="sr-${brand}-sunroof" min="0" value="${r[brand].sunroof}"></label>
-              <label>Units (₱ per unit)<input type="number" id="sr-${brand}-units_rate" min="0" value="${r[brand].units_rate||0}"></label>
+            <div style="font-weight:700;font-size:13px;text-transform:uppercase;letter-spacing:.8px;margin-bottom:12px;color:var(--text-soft)">${brand.toUpperCase()}</div>
+            <div style="display:grid;gap:8px">
+              <div style="display:grid;grid-template-columns:160px 1fr 1fr;gap:10px;align-items:end;padding-bottom:4px;border-bottom:1px solid var(--border)">
+                <span style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:var(--text-dim)">Field</span>
+                <span style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:var(--text-dim)">Rate per unit (₱)</span>
+                <span style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:var(--text-dim)">Default Qty</span>
+              </div>
+              ${[
+                { key:"sedan",      rateKey:"sedan",      label:"Sedan / CUV" },
+                { key:"mpv",        rateKey:"mpv",        label:"MPV" },
+                { key:"sunroof",    rateKey:"sunroof",    label:"Sunroof" },
+                { key:"scrapping",  rateKey:"scrap",      label:"Scrap" },
+                { key:"tubes",      rateKey:"tubes_rate", label:"Tubes (₱50 ea)" },
+              ].map(f => `
+                <div style="display:grid;grid-template-columns:160px 1fr 1fr;gap:10px;align-items:center">
+                  <span style="font-size:12px;font-weight:600;color:var(--text)">${f.label}</span>
+                  <input type="number" id="sr-${brand}-${f.rateKey}" min="0" value="${r[brand][f.rateKey]||0}" placeholder="₱ rate">
+                  <input type="number" id="sq-${brand}-${f.key}" min="0" value="${r[brand][f.key+'_qty']||0}" placeholder="default qty">
+                </div>
+              `).join("")}
             </div>
           </div>
         `).join('<hr style="border:none;border-top:1px solid var(--border);margin:4px 0">')}
@@ -919,16 +960,25 @@ function saveSettings() {
   const rates = {};
   brands.forEach(b => {
     rates[b] = {
-      sedan:      +document.getElementById(`sr-${b}-sedan`).value      || 0,
-      mpv:        +document.getElementById(`sr-${b}-mpv`).value        || 0,
-      sunroof:    +document.getElementById(`sr-${b}-sunroof`).value    || 0,
-      units_rate: +document.getElementById(`sr-${b}-units_rate`).value || 0,
+      sedan:       +document.getElementById(`sr-${b}-sedan`).value      || 0,
+      mpv:         +document.getElementById(`sr-${b}-mpv`).value        || 0,
+      sunroof:     +document.getElementById(`sr-${b}-sunroof`).value    || 0,
+      scrap:       +document.getElementById(`sr-${b}-scrap`).value      || 0,
+      tubes_rate:  +document.getElementById(`sr-${b}-tubes_rate`).value || 0,
+      // units_rate kept from current state (not shown in UI)
+      units_rate:  COMMISSION_RATES[b] ? (COMMISSION_RATES[b].units_rate || 0) : 0,
+      sedan_qty:   +document.getElementById(`sq-${b}-sedan`).value      || 0,
+      mpv_qty:     +document.getElementById(`sq-${b}-mpv`).value        || 0,
+      sunroof_qty: +document.getElementById(`sq-${b}-sunroof`).value    || 0,
+      scrapping_qty: +document.getElementById(`sq-${b}-scrapping`).value|| 0,
+      tubes_qty:   +document.getElementById(`sq-${b}-tubes`).value      || 0,
+      units_qty:   COMMISSION_RATES[b] ? (COMMISSION_RATES[b].units_qty || 0) : 0,
     };
   });
   COMMISSION_RATES = rates;
   BYD = rates.byd; GEELY = rates.geely;
   saveCommissionRates(rates);
-  toast("Commission rates saved ✓");
+  toast("Commission rates & defaults saved ✓");
 }
 
 // =============== EXPORTS (XLSX with styling) ===============
