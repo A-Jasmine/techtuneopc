@@ -1103,64 +1103,149 @@ textarea:focus {
     grid-template-columns: 1fr;
   }
 }
+
 /* ───────────────── ENHANCED ACCENTS (v2) ───────────────── */
 
 /* Period summary tone tiles */
-.period-summary > div {
+.period-summary>div {
   position: relative;
   border-radius: var(--radius-sm);
   padding: 12px 14px !important;
   background: var(--surface) !important;
   border: 1px solid var(--border);
-  display: flex; flex-direction: column; gap: 4px;
-  font-size: 10.5px; font-weight: 700;
-  letter-spacing: .6px; text-transform: uppercase;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: .6px;
+  text-transform: uppercase;
   color: var(--text-soft);
   overflow: hidden;
 }
-.period-summary > div::before {
-  content: ""; position: absolute; left: 0; top: 0; bottom: 0;
-  width: 3px; border-radius: 3px 0 0 3px;
+
+.period-summary>div::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 3px;
+  border-radius: 3px 0 0 3px;
 }
-.period-summary > div strong {
-  font-size: 15px; font-weight: 700;
-  letter-spacing: 0; text-transform: none; color: var(--text);
+
+.period-summary>div strong {
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--text);
 }
-.period-summary .ps-blue::before   { background: #2563eb; }
-.period-summary .ps-blue   { background: linear-gradient(135deg, #eff6ff, #fff) !important; }
-.period-summary .ps-amber::before  { background: #d97706; }
-.period-summary .ps-amber  { background: linear-gradient(135deg, #fffbeb, #fff) !important; }
-.period-summary .ps-green::before  { background: #16a34a; }
-.period-summary .ps-green  { background: linear-gradient(135deg, #f0fdf4, #fff) !important; }
-.period-summary .ps-purple::before { background: #7c3aed; }
-.period-summary .ps-purple { background: linear-gradient(135deg, #f5f3ff, #fff) !important; }
-.period-summary .ps-cyan::before   { background: #0891b2; }
-.period-summary .ps-cyan   { background: linear-gradient(135deg, #ecfeff, #fff) !important; }
-.period-summary .ps-rose::before   { background: #dc2626; }
-.period-summary .ps-rose   { background: linear-gradient(135deg, #fef2f2, #fff) !important; }
+
+.period-summary .ps-blue::before {
+  background: #2563eb;
+}
+
+.period-summary .ps-blue {
+  background: linear-gradient(135deg, #eff6ff, #fff) !important;
+}
+
+.period-summary .ps-amber::before {
+  background: #d97706;
+}
+
+.period-summary .ps-amber {
+  background: linear-gradient(135deg, #fffbeb, #fff) !important;
+}
+
+.period-summary .ps-green::before {
+  background: #16a34a;
+}
+
+.period-summary .ps-green {
+  background: linear-gradient(135deg, #f0fdf4, #fff) !important;
+}
+
+.period-summary .ps-purple::before {
+  background: #7c3aed;
+}
+
+.period-summary .ps-purple {
+  background: linear-gradient(135deg, #f5f3ff, #fff) !important;
+}
+
+.period-summary .ps-cyan::before {
+  background: #0891b2;
+}
+
+.period-summary .ps-cyan {
+  background: linear-gradient(135deg, #ecfeff, #fff) !important;
+}
+
+.period-summary .ps-rose::before {
+  background: #dc2626;
+}
+
+.period-summary .ps-rose {
+  background: linear-gradient(135deg, #fef2f2, #fff) !important;
+}
 
 /* Toned toggle checks — fixes invisible checkmark + adds tasteful color */
 .toggle-check .toggle-box {
-  width: 20px !important; height: 20px !important;
+  width: 20px !important;
+  height: 20px !important;
   border-radius: 6px !important;
   border: 1.8px solid var(--border-hi) !important;
   background: #fff !important;
-  box-shadow: inset 0 0 0 1px rgba(255,255,255,.6);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .6);
 }
-.toggle-check .toggle-box svg {
-  width: 14px !important; height: 12px !important;
-  color: #fff !important;
-  opacity: 0; transform: scale(.5);
-  transition: .18s cubic-bezier(.34,1.56,.64,1);
-}
-.toggle-check.is-checked .toggle-box svg { opacity: 1 !important; transform: scale(1) !important; }
 
-.toggle-check.tone-blue.is-checked   { background: #eff6ff !important; border-color: #bfdbfe !important; color: #1d4ed8 !important; }
-.toggle-check.tone-blue.is-checked   .toggle-box { background: #2563eb !important; border-color: #2563eb !important; }
-.toggle-check.tone-amber.is-checked  { background: #fffbeb !important; border-color: #fde68a !important; color: #b45309 !important; }
-.toggle-check.tone-amber.is-checked  .toggle-box { background: #d97706 !important; border-color: #d97706 !important; }
-.toggle-check.tone-purple.is-checked { background: #f5f3ff !important; border-color: #ddd6fe !important; color: #6d28d9 !important; }
-.toggle-check.tone-purple.is-checked .toggle-box { background: #7c3aed !important; border-color: #7c3aed !important; }
+.toggle-check .toggle-box svg {
+  width: 14px !important;
+  height: 12px !important;
+  color: #fff !important;
+  opacity: 0;
+  transform: scale(.5);
+  transition: .18s cubic-bezier(.34, 1.56, .64, 1);
+}
+
+.toggle-check.is-checked .toggle-box svg {
+  opacity: 1 !important;
+  transform: scale(1) !important;
+}
+
+.toggle-check.tone-blue.is-checked {
+  background: #eff6ff !important;
+  border-color: #bfdbfe !important;
+  color: #1d4ed8 !important;
+}
+
+.toggle-check.tone-blue.is-checked .toggle-box {
+  background: #2563eb !important;
+  border-color: #2563eb !important;
+}
+
+.toggle-check.tone-amber.is-checked {
+  background: #fffbeb !important;
+  border-color: #fde68a !important;
+  color: #b45309 !important;
+}
+
+.toggle-check.tone-amber.is-checked .toggle-box {
+  background: #d97706 !important;
+  border-color: #d97706 !important;
+}
+
+.toggle-check.tone-purple.is-checked {
+  background: #f5f3ff !important;
+  border-color: #ddd6fe !important;
+  color: #6d28d9 !important;
+}
+
+.toggle-check.tone-purple.is-checked .toggle-box {
+  background: #7c3aed !important;
+  border-color: #7c3aed !important;
+}
 
 /* Rate chip in employee list */
 .rate-chip {
@@ -1188,13 +1273,22 @@ textarea:focus {
   color: var(--text);
   cursor: pointer;
 }
-#emp-base:focus { outline: none; border-color: #2563eb; box-shadow: 0 0 0 3px rgba(37,99,235,.12); }
+
+#emp-base:focus {
+  outline: none;
+  border-color: #2563eb;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, .12);
+}
 
 /* Empty state polish */
 .empty-state {
-  display: flex; flex-direction: column; align-items: center;
-  gap: 8px; padding: 28px 20px;
-  color: var(--text-dim); font-size: 13px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 28px 20px;
+  color: var(--text-dim);
+  font-size: 13px;
   background: linear-gradient(180deg, var(--surface-2), transparent);
   border-radius: var(--radius);
   border: 1px dashed var(--border);
@@ -1213,13 +1307,25 @@ textarea:focus {
   font-family: var(--font);
   font-size: 13px;
 }
-#pp-emp:focus { outline: none; box-shadow: 0 0 0 3px rgba(37,99,235,.15); }
+
+#pp-emp:focus {
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, .15);
+}
 
 /* Subtle accent bar on entry cards */
-.entry { position: relative; }
+.entry {
+  position: relative;
+}
+
 .entry::before {
-  content: ""; position: absolute; left: 0; top: 14px; bottom: 14px;
-  width: 3px; border-radius: 3px;
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 14px;
+  bottom: 14px;
+  width: 3px;
+  border-radius: 3px;
   background: linear-gradient(180deg, #2563eb, #7c3aed);
   opacity: .35;
 }
@@ -1228,4 +1334,85 @@ textarea:focus {
 .net-bar {
   background: linear-gradient(135deg, #111111, #1f2937 60%, #2563eb) !important;
   color: #fff;
+}
+
+
+
+.login-container {
+  width: 360px;
+  padding: 40px;
+  border-radius: 20px;
+  background: rgba(255, 255, 255, 0.08);
+  backdrop-filter: blur(15px);
+  -webkit-backdrop-filter: blur(15px);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+  text-align: center;
+  color: white;
+}
+
+.login-container h2 {
+  margin-bottom: 30px;
+  font-size: 32px;
+  font-weight: 600;
+  letter-spacing: 1px;
+}
+
+.input-box {
+  margin-bottom: 20px;
+}
+
+.input-box input {
+  width: 100%;
+  padding: 14px;
+  border: none;
+  outline: none;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.12);
+  color: white;
+  font-size: 15px;
+  transition: 0.3s ease;
+}
+
+.input-box input::placeholder {
+  color: rgba(255, 255, 255, 0.7);
+}
+
+.input-box input:focus {
+  background: rgba(255, 255, 255, 0.2);
+  transform: scale(1.02);
+}
+
+.login-btn {
+  width: 100%;
+  padding: 14px;
+  border: none;
+  border-radius: 12px;
+  background: linear-gradient(135deg, #6a11cb, #2575fc);
+  color: white;
+  font-size: 16px;
+  font-weight: bold;
+  cursor: pointer;
+  transition: 0.3s ease;
+}
+
+.login-btn:hover {
+  transform: translateY(-2px);
+  opacity: 0.95;
+}
+
+.logout-btn {
+  margin-top: 15px;
+  background: transparent;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  color: white;
+  padding: 12px;
+  width: 100%;
+  border-radius: 12px;
+  cursor: pointer;
+  transition: 0.3s ease;
+}
+
+.logout-btn:hover {
+  background: rgba(255, 255, 255, 0.1);
 }
