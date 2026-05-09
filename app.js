@@ -572,10 +572,7 @@ function renderUnitsListUI(pid, eid) {
           <span>Units Qty <span style="font-weight:400;font-size:10px;color:var(--text-dim)">(₱${(r.units_rate||0).toLocaleString()}/ea)</span></span>
           <button type="button" class="icon-btn" style="width:20px;height:20px;padding:0;flex-shrink:0;color:var(--danger)" title="Remove row" ${disAttr} onclick="removeUnitsRow('${pid}','${eid}',${i})"><i data-lucide="x"></i></button>
         </span>
-        <div style="display:flex;gap:6px;align-items:center;margin-top:4px">
-          <input type="text" placeholder="Description" value="${(u.desc||'').replace(/"/g,'&quot;')}" style="flex:1;min-width:0;font-size:12px" ${disAttr} onchange="updateUnitsRow('${pid}','${eid}',${i},'desc',this.value)">
-          <input type="number" min="0" value="${u.qty||0}" style="width:52px;text-align:center" ${disAttr} onchange="updateUnitsRow('${pid}','${eid}',${i},'qty',this.value)">
-        </div>
+        <input type="number" min="0" value="${u.qty||0}" style="width:72px;text-align:center;margin-top:4px" ${disAttr} onchange="updateUnitsRow('${pid}','${eid}',${i},'qty',this.value)">
       </label>
       <div class="div-row"><span class="div-label">Workers</span>
         <select style="width:80px;font-size:12px" title="Divide by (# of workers)" ${disAttr} onchange="updateUnitsRow('${pid}','${eid}',${i},'div',this.value)">
