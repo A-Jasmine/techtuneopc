@@ -4,7 +4,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Techtune Payroll System</title>
+  <title>Techtune Solutions Enterprises OPC Payroll System</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="styles.css" />
@@ -28,8 +28,8 @@
         </svg>
       </div>
       <div>
-        <h1>Techtune Payroll</h1>
-        <small>Tint Installer Payroll System</small>
+        <h1>Techtune Solutions Enterprises OPC</h1>
+        <small>Payroll System</small>
       </div>
     </div>
     <nav class="tabs">
@@ -70,12 +70,26 @@
         <div class="card-head">
           <div>
             <h2><i data-lucide="download"></i> Export Summary</h2>
-          <small>Download styled Excel reports</small>
+            <small>Download styled Excel payroll reports</small>
           </div>
         </div>
-        <div class="row">
-          <button class="btn" onclick="exportSummaryCSV(7)"><i data-lucide="file-spreadsheet"></i> Weekly Excel</button>
-          <button class="btn" onclick="exportSummaryCSV(14)"><i data-lucide="file-spreadsheet"></i> Bi-weekly Excel</button>
+        <div class="export-btn-row">
+          <button class="export-btn" onclick="exportSummaryCSV('weekly')">
+            <div class="export-btn-icon"><i data-lucide="calendar-days"></i></div>
+            <div class="export-btn-body">
+              <strong>Weekly Export</strong>
+              <span>All periods with pay dates in the past 7 days</span>
+            </div>
+            <i data-lucide="arrow-down-to-line" class="export-btn-arrow"></i>
+          </button>
+          <button class="export-btn" onclick="openDateRangeModal()">
+            <div class="export-btn-icon export-btn-icon--teal"><i data-lucide="calendar-range"></i></div>
+            <div class="export-btn-body">
+              <strong>Custom Date Range</strong>
+              <span>Pick a start &amp; end date to filter pay periods</span>
+            </div>
+            <i data-lucide="chevron-right" class="export-btn-arrow"></i>
+          </button>
         </div>
       </div>
 
@@ -183,6 +197,29 @@
       <div class="modal-foot">
         <button class="btn" onclick="closeEmpDialog()">Cancel</button>
         <button class="btn primary" onclick="saveEmp()"><i data-lucide="check"></i> Save Employee</button>
+      </div>
+    </div>
+  </div>
+
+
+  <!-- Date Range Export Modal -->
+  <div class="modal" id="daterange-modal">
+    <div class="modal-content">
+      <div class="modal-head">
+        <h3><i data-lucide="calendar-range"></i> Custom Date Range Export</h3>
+        <button class="icon-btn" onclick="closeDateRangeModal()"><i data-lucide="x"></i></button>
+      </div>
+      <div class="form" style="padding:22px 26px">
+        <p style="font-size:13px;color:var(--text-soft);margin-bottom:4px">Export all pay periods whose <strong>pay date</strong> falls within the selected range.</p>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:14px">
+          <label>Start Date<input type="date" id="dr-start" /></label>
+          <label>End Date<input type="date" id="dr-end" /></label>
+        </div>
+        <div id="dr-preview" class="dr-preview" style="display:none"></div>
+      </div>
+      <div class="modal-foot">
+        <button class="btn" onclick="closeDateRangeModal()">Cancel</button>
+        <button class="btn primary" onclick="exportDateRange()"><i data-lucide="file-spreadsheet"></i> Export Excel</button>
       </div>
     </div>
   </div>

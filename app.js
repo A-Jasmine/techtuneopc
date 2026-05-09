@@ -608,11 +608,15 @@ function exportCSV(pid) {
   XLSX.writeFile(wb, `${emp.name.replace(/\s+/g, "_")}_${p.start_date}_to_${p.end_date}_payroll.xlsx`);
 }
 
-function exportSummaryCSV(bucket) {
+// =============== SUMMARY EXPORT CORE ===============
+function buildSummaryXLSX(titleLabel, rangeLabel, filteredPeriods) {
   const aoa = []; const merges = [];
-  aoa.push([xTitle(`PAYROLL SUMMARY — ${bucket === 7 ? "WEEKLY" : "BIWEEKLY"}`)]); pushMerge(merges, 0, 0, 0, 13);
+  aoa.push([xTitle(`PAYROLL SUMMARY — ${titleLabel}`)]); pushMerge(merges, 0, 0, 0, 13);
   aoa.push([xText(COMPANY.name, { font: { bold: true, sz: 12 }, alignment: { horizontal: "center" } })]); pushMerge(merges, 1, 0, 1, 13);
-  aoa.push([xText(`Generated ${new Date().toLocaleString("en-PH")}`, { font: { sz: 10, color: { rgb: "555555" } }, alignment: { horizontal: "center" } })]); pushMerge(merges, 2, 0, 2, 13);
+  const subLine = rangeLabel
+    ? `${rangeLabel}  •  Generated ${new Date().toLocaleString("en-PH")}`
+    : `Generated ${new Date().toLocaleString("en-PH")}`;
+  aoa.push([xText(subLine, { font: { sz: 10, color: { rgb: "555555" } }, alignment: { horizontal: "center" } })]); pushMerge(merges, 2, 0, 2, 13);
   aoa.push([xText("")]);
 
   const headers = ["Employee", "Position", "Period Start", "Period End", "Pay Date", "Days", "Basic", "OT", "Commission", "Holiday", "Gas", "Total Earnings", "Deductions", "NET PAY"];
@@ -620,7 +624,7 @@ function exportSummaryCSV(bucket) {
 
   let grand = 0;
   state.employees.forEach(emp => {
-    const my = state.periods.filter(p => p.employee_id === emp.id).sort((a, b) => a.start_date.localeCompare(b.start_date));
+    const my = filteredPeriods.filter(p => p.employee_id === emp.id).sort((a, b) => a.start_date.localeCompare(b.start_date));
     if (!my.length) return;
     let sub = 0;
     my.forEach(p => {
@@ -646,10 +650,81 @@ function exportSummaryCSV(bucket) {
   ws['!merges'] = merges;
   ws['!cols'] = [{ wch: 22 }, { wch: 22 }, { wch: 12 }, { wch: 12 }, { wch: 12 }, { wch: 7 }, { wch: 11 }, { wch: 11 }, { wch: 12 }, { wch: 11 }, { wch: 11 }, { wch: 14 }, { wch: 12 }, { wch: 14 }];
   ws['!rows'] = [{ hpt: 28 }];
+  return { ws, grand };
+}
 
+function exportSummaryCSV(mode) {
+  // mode = 'weekly'
+  const today = new Date();
+  const cutoff = new Date(today); cutoff.setDate(cutoff.getDate() - 7);
+  const cutoffStr = cutoff.toISOString().slice(0, 10);
+  const todayStr = today.toISOString().slice(0, 10);
+  const filtered = state.periods.filter(p => (p.pay_date || "") >= cutoffStr && (p.pay_date || "") <= todayStr);
+  if (!filtered.length) { toast("No pay periods found for the past 7 days."); return; }
+  const { ws } = buildSummaryXLSX("WEEKLY", `Pay date: ${cutoffStr} → ${todayStr}`, filtered);
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, "Summary");
-  XLSX.writeFile(wb, `payroll_summary_${bucket === 7 ? "weekly" : "biweekly"}_${new Date().toISOString().slice(0, 10)}.xlsx`);
+  XLSX.writeFile(wb, `payroll_summary_weekly_${todayStr}.xlsx`);
+  toast("Weekly Excel exported ✓");
+}
+
+// =============== DATE RANGE MODAL ===============
+function openDateRangeModal() {
+  const modal = document.getElementById("daterange-modal");
+  // Default: current month start → today
+  const today = new Date();
+  const monthStart = new Date(today.getFullYear(), today.getMonth(), 1).toISOString().slice(0, 10);
+  const todayStr = today.toISOString().slice(0, 10);
+  document.getElementById("dr-start").value = monthStart;
+  document.getElementById("dr-end").value = todayStr;
+  modal.classList.add("open");
+  lucide.createIcons();
+  updateDateRangePreview();
+  document.getElementById("dr-start").addEventListener("change", updateDateRangePreview);
+  document.getElementById("dr-end").addEventListener("change", updateDateRangePreview);
+}
+
+function closeDateRangeModal() {
+  document.getElementById("daterange-modal").classList.remove("open");
+  const s = document.getElementById("dr-start");
+  const e = document.getElementById("dr-end");
+  s.removeEventListener("change", updateDateRangePreview);
+  e.removeEventListener("change", updateDateRangePreview);
+}
+
+function updateDateRangePreview() {
+  const start = document.getElementById("dr-start").value;
+  const end = document.getElementById("dr-end").value;
+  const preview = document.getElementById("dr-preview");
+  if (!start || !end) { preview.style.display = "none"; return; }
+  if (end < start) { preview.style.display = "flex"; preview.className = "dr-preview dr-preview--warn"; preview.innerHTML = '<i data-lucide="alert-circle"></i> End date must be after start date.'; lucide.createIcons(); return; }
+  const matched = state.periods.filter(p => (p.pay_date || "") >= start && (p.pay_date || "") <= end);
+  const empCount = new Set(matched.map(p => p.employee_id)).size;
+  const grandNet = matched.reduce((sum, p) => sum + calcPeriod(p).net, 0);
+  preview.style.display = "flex";
+  preview.className = matched.length ? "dr-preview dr-preview--ok" : "dr-preview dr-preview--empty";
+  if (!matched.length) {
+    preview.innerHTML = '<i data-lucide="inbox"></i> No pay periods found in this date range.';
+  } else {
+    preview.innerHTML = `<i data-lucide="check-circle"></i> <strong>${matched.length}</strong> pay period${matched.length !== 1 ? "s" : ""} across <strong>${empCount}</strong> employee${empCount !== 1 ? "s" : ""} &nbsp;·&nbsp; Grand Net: <strong>${peso(grandNet)}</strong>`;
+  }
+  lucide.createIcons();
+}
+
+function exportDateRange() {
+  const start = document.getElementById("dr-start").value;
+  const end = document.getElementById("dr-end").value;
+  if (!start || !end) return toast("Please select both start and end dates.");
+  if (end < start) return toast("End date must be after start date.");
+  const filtered = state.periods.filter(p => (p.pay_date || "") >= start && (p.pay_date || "") <= end);
+  if (!filtered.length) { toast("No pay periods found in that date range."); return; }
+  const label = `${start} to ${end}`;
+  const { ws } = buildSummaryXLSX(`CUSTOM RANGE`, `Pay date: ${label}`, filtered);
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, "Summary");
+  XLSX.writeFile(wb, `payroll_summary_${start}_to_${end}.xlsx`);
+  closeDateRangeModal();
+  toast("Custom range Excel exported ✓");
 }
 
 // =============== PDF (Monochrome • Landscape • Formal) ===============
