@@ -12,18 +12,18 @@ function loadCommissionRates() {
     const saved = localStorage.getItem("commissionRates");
     if (saved) {
       const p = JSON.parse(saved);
-      ["byd","geely","other"].forEach(b => {
+      ["byd", "geely", "other"].forEach(b => {
         if (!p[b]) return;
-        if (p[b].scrap      === undefined) p[b].scrap      = 0;
+        if (p[b].scrap === undefined) p[b].scrap = 0;
         if (p[b].units_rate === undefined) p[b].units_rate = 0;
       });
       return p;
     }
-  } catch(e) {}
+  } catch (e) { }
   return {
-    byd:   { sedan: 150, mpv: 200, sunroof: 50,  scrap: 0, units_rate: 0 },
+    byd: { sedan: 150, mpv: 200, sunroof: 50, scrap: 0, units_rate: 0 },
     geely: { sedan: 200, mpv: 200, sunroof: 200, scrap: 0, units_rate: 0 },
-    other: { sedan: 0,   mpv: 0,   sunroof: 0,   scrap: 0, units_rate: 0 }
+    other: { sedan: 0, mpv: 0, sunroof: 0, scrap: 0, units_rate: 0 }
   };
 }
 function saveCommissionRates(rates) {
@@ -31,11 +31,11 @@ function saveCommissionRates(rates) {
 }
 let COMMISSION_RATES = loadCommissionRates();
 // Keep legacy aliases in sync so existing calcEntry still works
-let BYD   = COMMISSION_RATES.byd;
+let BYD = COMMISSION_RATES.byd;
 let GEELY = COMMISSION_RATES.geely;
 const TUBE_RATE = 50, HOLIDAY_AMT = 1000, OFFSET_AMT = 1000;
 const BASE_RATE_OPTIONS = [1000, 1100, 1200];
-const LOCATIONS = ["Calamba", "Sta. Rosa", "Las Piñas", "Alabang", "Makati", "Quezon City", "Pasig", "Manila", "Cavite", "Other"];
+const LOCATIONS = ["Batangas", "BGC", "Makati", "Calamba", "Commonwealth", "Pasong Tamo", "Subic", "Sucat", "Other"];
 const COMPANY = { name: "Techtune Solutions Enterprises OPC", addr1: "Unit 6505 Valencia Casa De Sequoia", addr2: "Padre Diego Cera Ave., Elias Aldana, Las Pinas City", email: "techtunesolutions.enterprises@gmail.com" };
 
 // derive hourly OT from base rate (orig 1000 -> 156.25 -> /6.4)
@@ -56,7 +56,7 @@ function safeDiv(n) { return n > 0 ? n : 1; }
 function parseUnitsList(e) {
   if (Array.isArray(e.units_list)) return e.units_list;
   if (typeof e.units_list === "string" && e.units_list) {
-    try { return JSON.parse(e.units_list); } catch(ex) {}
+    try { return JSON.parse(e.units_list); } catch (ex) { }
   }
   return [];
 }
@@ -64,12 +64,12 @@ function parseUnitsList(e) {
 function calcEntry(e, baseRate) {
   const cr = COMMISSION_RATES;
   const r = e.brand === "byd" ? cr.byd : e.brand === "geely" ? cr.geely : cr.other;
-  const globalDiv  = safeDiv(e.divide_by   || 1);
-  const sedanDiv   = safeDiv(e.sedan_div   || globalDiv);
-  const mpvDiv     = safeDiv(e.mpv_div     || globalDiv);
+  const globalDiv = safeDiv(e.divide_by || 1);
+  const sedanDiv = safeDiv(e.sedan_div || globalDiv);
+  const mpvDiv = safeDiv(e.mpv_div || globalDiv);
   const sunroofDiv = safeDiv(e.sunroof_div || globalDiv);
-  const scrapDiv   = safeDiv(e.scrap_div   || globalDiv);
-  const tubesDiv   = safeDiv(e.tubes_div   || globalDiv);
+  const scrapDiv = safeDiv(e.scrap_div || globalDiv);
+  const tubesDiv = safeDiv(e.tubes_div || globalDiv);
 
   // Units list: each row has qty and div, rate comes from brand's units_rate
   const unitsList = parseUnitsList(e);
@@ -78,11 +78,11 @@ function calcEntry(e, baseRate) {
   }, 0);
 
   const commission = round2(
-    (e.sedan_qty     || 0) * r.sedan      / sedanDiv +
-    (e.mpv_qty       || 0) * r.mpv        / mpvDiv +
-    (e.sunroof_qty   || 0) * r.sunroof    / sunroofDiv +
-    (e.scrapping_qty || 0) * (r.scrap||0) / scrapDiv +
-    (e.tubes_qty     || 0) * TUBE_RATE    / tubesDiv +
+    (e.sedan_qty || 0) * r.sedan / sedanDiv +
+    (e.mpv_qty || 0) * r.mpv / mpvDiv +
+    (e.sunroof_qty || 0) * r.sunroof / sunroofDiv +
+    (e.scrapping_qty || 0) * (r.scrap || 0) / scrapDiv +
+    (e.tubes_qty || 0) * TUBE_RATE / tubesDiv +
     unitsCommission
   );
   const otHrs = (+e.ot_hours || 0) + (+e.ot_minutes || 0) / 60;
@@ -222,8 +222,8 @@ function renderEmployees() {
 
   const filtered = empSearch
     ? state.employees.filter(e =>
-        e.name.toLowerCase().includes(empSearch) ||
-        (e.position || "").toLowerCase().includes(empSearch))
+      e.name.toLowerCase().includes(empSearch) ||
+      (e.position || "").toLowerCase().includes(empSearch))
     : state.employees;
 
   if (filtered.length === 0) {
@@ -237,7 +237,7 @@ function renderEmployees() {
       <div class="emp-avatar">${e.name.charAt(0).toUpperCase()}</div>
       <div class="info">
         <strong>${e.name}</strong>
-        <small>${e.position || ''} • <span class="rate-chip">₱${(+e.base_rate||1000).toLocaleString()}/day</span></small>
+        <small>${e.position || ''} • <span class="rate-chip">₱${(+e.base_rate || 1000).toLocaleString()}/day</span></small>
       </div>
       <div class="row">
         <button class="btn accent" onclick="openEditEmpDialog('${e.id}')"><i data-lucide="pencil"></i> Edit</button>
@@ -371,16 +371,16 @@ function editPeriod(id) {
   const t = calcPeriod(p);
 
   // Attendance summary chips
-  const fullDays    = p.entries.filter(e => !e.is_halfday && !e.is_holiday && !e.is_offset).length;
-  const halfDays    = p.entries.filter(e => e.is_halfday).length;
+  const fullDays = p.entries.filter(e => !e.is_halfday && !e.is_holiday && !e.is_offset).length;
+  const halfDays = p.entries.filter(e => e.is_halfday).length;
   const holidayDays = p.entries.filter(e => e.is_holiday).length;
-  const offsetDays  = p.entries.filter(e => e.is_offset).length;
+  const offsetDays = p.entries.filter(e => e.is_offset).length;
   const attendanceChips = `
     <div class="attendance-chips">
       <span class="chip chip-full"><i data-lucide="sun"></i> ${fullDays} Full</span>
-      ${halfDays    ? `<span class="chip chip-half"><i data-lucide="clock"></i> ${halfDays} Half</span>` : ""}
+      ${halfDays ? `<span class="chip chip-half"><i data-lucide="clock"></i> ${halfDays} Half</span>` : ""}
       ${holidayDays ? `<span class="chip chip-holiday"><i data-lucide="star"></i> ${holidayDays} Holiday</span>` : ""}
-      ${offsetDays  ? `<span class="chip chip-offset"><i data-lucide="refresh-cw"></i> ${offsetDays} Offset</span>` : ""}
+      ${offsetDays ? `<span class="chip chip-offset"><i data-lucide="refresh-cw"></i> ${offsetDays} Offset</span>` : ""}
     </div>`;
 
   const div = document.getElementById("period-detail");
@@ -389,7 +389,7 @@ function editPeriod(id) {
       <div class="card-head">
         <div>
           <h2><i data-lucide="calendar"></i> ${emp.name} — Pay Period</h2>
-          <small>Base ₱${(+emp.base_rate||1000).toLocaleString()}/day • Edit work entries and compute net pay</small>
+          <small>Base ₱${(+emp.base_rate || 1000).toLocaleString()}/day • Edit work entries and compute net pay</small>
           ${attendanceChips}
         </div>
         <div class="row">
@@ -442,11 +442,11 @@ async function addEntry(pid) {
     pay_period_id: pid, date: new Date().toISOString().slice(0, 10), location: "Calamba",
     time_in: "08:00", time_out: "17:00", ot_hours: 0, ot_minutes: 0, ot_rate: otRateFromBase(emp.base_rate),
     brand: "geely",
-    sedan_qty:     DEFAULT_UNITS().sedan_qty     || 0,
-    mpv_qty:       DEFAULT_UNITS().mpv_qty       || 0,
-    sunroof_qty:   DEFAULT_UNITS().sunroof_qty   || 0,
+    sedan_qty: DEFAULT_UNITS().sedan_qty || 0,
+    mpv_qty: DEFAULT_UNITS().mpv_qty || 0,
+    sunroof_qty: DEFAULT_UNITS().sunroof_qty || 0,
     scrapping_qty: DEFAULT_UNITS().scrapping_qty || 0,
-    tubes_qty:     DEFAULT_UNITS().tubes_qty     || 0,
+    tubes_qty: DEFAULT_UNITS().tubes_qty || 0,
     units_list: JSON.stringify([]),
     divide_by: 1,
     sedan_div: 1, mpv_div: 1, sunroof_div: 1, scrap_div: 1, tubes_div: 1,
@@ -473,8 +473,8 @@ async function delEntry(pid, eid) {
   editPeriod(pid);
 }
 
-const NUMERIC_KEYS = ["sedan_qty","mpv_qty","sunroof_qty","scrapping_qty","tubes_qty","divide_by","sedan_div","mpv_div","sunroof_div","scrap_div","tubes_div","ot_hours","ot_minutes","gas_allowance","ot_rate"];
-const BOOL_KEYS = ["is_holiday","is_offset","is_halfday"];
+const NUMERIC_KEYS = ["sedan_qty", "mpv_qty", "sunroof_qty", "scrapping_qty", "tubes_qty", "divide_by", "sedan_div", "mpv_div", "sunroof_div", "scrap_div", "tubes_div", "ot_hours", "ot_minutes", "gas_allowance", "ot_rate"];
+const BOOL_KEYS = ["is_holiday", "is_offset", "is_halfday"];
 const STRING_KEYS = ["holiday_type"];
 
 async function updateEntry(pid, eid, key, val) {
@@ -563,28 +563,27 @@ function renderUnitsListUI(pid, eid) {
   const isOffsite = (e.holiday_type || (e.is_holiday ? "onsite" : "none")) === "offsite";
   const disAttr = isOffsite ? "disabled" : "";
 
-  // Each unit row becomes its own comm-field-wrap card, plus a final add-button card
-  // We render the wrapper itself as the grid cell spanning container
+  // Each unit row is a plain comm-field-wrap card that slots into the parent commission-grid.
+  // The container uses display:contents so it's transparent to the grid.
   wrap.innerHTML = list.map((u, i) => `
-    <div class="comm-field-wrap comm-field-wrap--unit-row">
-      <label style="flex:1">
-        <span>Units Qty <span style="font-weight:400;font-size:10px;color:var(--text-dim)">(₱${(r.units_rate||0).toLocaleString()}/ea)</span></span>
+    <div class="comm-field-wrap">
+      <label>Units Qty <span style="font-weight:400;font-size:10px;color:var(--text-dim)">(₱${(r.units_rate || 0).toLocaleString()}/ea)</span>
         <div style="display:flex;align-items:center;gap:4px;margin-top:4px">
-          <input type="number" min="0" value="${u.qty||0}" style="width:72px;text-align:center" ${disAttr} onchange="updateUnitsRow('${pid}','${eid}',${i},'qty',this.value)">
+          <input type="number" min="0" value="${u.qty || 0}" style="width:72px;text-align:center" ${disAttr} onchange="updateUnitsRow('${pid}','${eid}',${i},'qty',this.value)">
           <button type="button" class="icon-btn" style="width:26px;height:26px;padding:0;flex-shrink:0;color:var(--danger);border:1px solid var(--border);border-radius:6px" title="Remove" ${disAttr} onclick="removeUnitsRow('${pid}','${eid}',${i})"><i data-lucide="x"></i></button>
         </div>
       </label>
       <div class="div-row"><span class="div-label">Workers</span>
-        <select style="width:72px;font-size:12px" title="Divide by (# of workers)" ${disAttr} onchange="updateUnitsRow('${pid}','${eid}',${i},'div',this.value)">
-          <option value="1" ${(+u.div||1)===1?"selected":""}>÷1</option>
-          <option value="2" ${(+u.div||1)===2?"selected":""}>÷2</option>
-          <option value="3" ${(+u.div||1)===3?"selected":""}>÷3</option>
-          <option value="4" ${(+u.div||1)===4?"selected":""}>÷4</option>
+        <select style="width:72px;font-size:12px;flex:none" title="Divide by (# of workers)" ${disAttr} onchange="updateUnitsRow('${pid}','${eid}',${i},'div',this.value)">
+          <option value="1" ${(+u.div || 1) === 1 ? "selected" : ""}>÷1</option>
+          <option value="2" ${(+u.div || 1) === 2 ? "selected" : ""}>÷2</option>
+          <option value="3" ${(+u.div || 1) === 3 ? "selected" : ""}>÷3</option>
+          <option value="4" ${(+u.div || 1) === 4 ? "selected" : ""}>÷4</option>
         </select>
       </div>
     </div>`).join("") + `
-  <div class="comm-field-wrap comm-field-wrap--add-unit">
-    <button type="button" class="btn" style="font-size:12px;padding:6px 10px;width:auto" ${disAttr} onclick="addUnitsRow('${pid}','${eid}')"><i data-lucide="plus"></i> Add Unit</button>
+  <div class="comm-field-wrap" style="justify-content:flex-end">
+    <button type="button" class="btn" style="font-size:12px;padding:6px 10px;width:auto;margin-top:auto" ${disAttr} onclick="addUnitsRow('${pid}','${eid}')"><i data-lucide="plus"></i> Add Unit</button>
   </div>`;
   lucide.createIcons();
 }
@@ -621,15 +620,15 @@ function renderEntries(pid) {
     const isOffsite = holidayType === "offsite";
     const baseLabel = e.is_offset ? `Offset day`
       : holidayType === "offsite" ? `Holiday Offsite · ₱0 base (holiday bonus only)`
-      : holidayType === "onsite"  ? (e.is_halfday ? `Holiday Onsite · Half day · ₱${(baseRate/2).toLocaleString()}` : `Holiday Onsite · ₱${baseRate.toLocaleString()}`)
-      : e.is_halfday ? `Half day · ₱${(baseRate/2).toLocaleString()}` : `Full day · ₱${baseRate.toLocaleString()}`;
+        : holidayType === "onsite" ? (e.is_halfday ? `Holiday Onsite · Half day · ₱${(baseRate / 2).toLocaleString()}` : `Holiday Onsite · ₱${baseRate.toLocaleString()}`)
+          : e.is_halfday ? `Half day · ₱${(baseRate / 2).toLocaleString()}` : `Full day · ₱${baseRate.toLocaleString()}`;
 
     // Per-field divide helpers
     const divSel = (field, val) => `<select style="width:80px;font-size:12px" onchange="updateEntry('${pid}','${e.id}','${field}',this.value)" title="Divide by (# of workers)">
-      <option value="1" ${(val||1)===1?"selected":""}>÷1</option>
-      <option value="2" ${(val||1)===2?"selected":""}>÷2</option>
-      <option value="3" ${(val||1)===3?"selected":""}>÷3</option>
-      <option value="4" ${(val||1)===4?"selected":""}>÷4</option>
+      <option value="1" ${(val || 1) === 1 ? "selected" : ""}>÷1</option>
+      <option value="2" ${(val || 1) === 2 ? "selected" : ""}>÷2</option>
+      <option value="3" ${(val || 1) === 3 ? "selected" : ""}>÷3</option>
+      <option value="4" ${(val || 1) === 4 ? "selected" : ""}>÷4</option>
     </select>`;
 
     // Brand rate hint
@@ -645,8 +644,8 @@ function renderEntries(pid) {
       <div class="entry-grid">
         <label>Date<input type="date" value="${e.date}" onchange="updateEntry('${pid}','${e.id}','date',this.value)"></label>
         <label>Location<select onchange="updateEntry('${pid}','${e.id}','location',this.value)">${LOCATIONS.map(l => `<option ${l === e.location ? "selected" : ""}>${l}</option>`).join("")}</select></label>
-        <label style="${isOffsite?offOpacity:''}">Time In<input type="time" value="${e.time_in || ''}" ${isOffsite?"disabled":""} onchange="updateEntry('${pid}','${e.id}','time_in',this.value)"></label>
-        <label style="${isOffsite?offOpacity:''}">Time Out<input type="time" value="${e.time_out || ''}" ${isOffsite?"disabled":""} onchange="updateEntry('${pid}','${e.id}','time_out',this.value)"></label>
+        <label style="${isOffsite ? offOpacity : ''}">Time In<input type="time" value="${e.time_in || ''}" ${isOffsite ? "disabled" : ""} onchange="updateEntry('${pid}','${e.id}','time_in',this.value)"></label>
+        <label style="${isOffsite ? offOpacity : ''}">Time Out<input type="time" value="${e.time_out || ''}" ${isOffsite ? "disabled" : ""} onchange="updateEntry('${pid}','${e.id}','time_out',this.value)"></label>
       </div>
       <div class="base-info-row">
         <span class="base-info-label"><i data-lucide="wallet"></i> ${baseLabel}</span>
@@ -655,17 +654,17 @@ function renderEntries(pid) {
       <div class="entry-section">
         <h4>Day Type</h4>
         <div class="entry-grid" style="align-items:end">
-          <label class="toggle-check tone-amber ${e.is_halfday && !isOffsite ? 'is-checked' : ''}" style="${isOffsite?offOpacity:''}">
-            <input type="checkbox" ${e.is_halfday ? "checked" : ""} ${isOffsite?"disabled":""} onchange="updateEntry('${pid}','${e.id}','is_halfday',this.checked);this.closest('.toggle-check').classList.toggle('is-checked',this.checked)">
+          <label class="toggle-check tone-amber ${e.is_halfday && !isOffsite ? 'is-checked' : ''}" style="${isOffsite ? offOpacity : ''}">
+            <input type="checkbox" ${e.is_halfday ? "checked" : ""} ${isOffsite ? "disabled" : ""} onchange="updateEntry('${pid}','${e.id}','is_halfday',this.checked);this.closest('.toggle-check').classList.toggle('is-checked',this.checked)">
             <span class="toggle-box"><svg viewBox="0 0 14 12" fill="none"><polyline points="2,6.5 5.5,10 12,2.5" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
             Half Day (½ base rate)
           </label>
           <label style="flex-direction:column;gap:4px">
             <span style="font-size:10px;font-weight:700;letter-spacing:.8px;text-transform:uppercase;color:var(--text-dim)">Holiday Pay</span>
-            <select onchange="onHolidayTypeChange('${pid}','${e.id}',this.value)" style="${holidayType==='offsite'?'border-color:var(--purple);background:var(--purple-bg);color:var(--purple)':holidayType==='onsite'?'border-color:var(--green);background:var(--green-bg);color:var(--green)':''}">
-              <option value="none"    ${holidayType==="none"    ?"selected":""}>None</option>
-              <option value="onsite"  ${holidayType==="onsite"  ?"selected":""}>Holiday Onsite (+₱1,000)</option>
-              <option value="offsite" ${holidayType==="offsite" ?"selected":""}>Holiday Offsite (+₱1,000, no work)</option>
+            <select onchange="onHolidayTypeChange('${pid}','${e.id}',this.value)" style="${holidayType === 'offsite' ? 'border-color:var(--purple);background:var(--purple-bg);color:var(--purple)' : holidayType === 'onsite' ? 'border-color:var(--green);background:var(--green-bg);color:var(--green)' : ''}">
+              <option value="none"    ${holidayType === "none" ? "selected" : ""}>None</option>
+              <option value="onsite"  ${holidayType === "onsite" ? "selected" : ""}>Holiday Onsite (+₱1,000)</option>
+              <option value="offsite" ${holidayType === "offsite" ? "selected" : ""}>Holiday Offsite (+₱1,000, no work)</option>
             </select>
           </label>
           <label class="toggle-check tone-blue ${e.is_offset ? "is-checked" : ""}">
@@ -675,21 +674,21 @@ function renderEntries(pid) {
           </label>
         </div>
       </div>
-      <div class="entry-section" style="${isOffsite?offOpacity:''}">
+      <div class="entry-section" style="${isOffsite ? offOpacity : ''}">
         <h4>Overtime</h4>
         <div class="entry-grid">
-          <label>OT Hrs<input type="number" min="0" value="${e.ot_hours||0}" ${isOffsite?"disabled":""} onchange="updateEntry('${pid}','${e.id}','ot_hours',this.value)"></label>
-          <label>OT Min<input type="number" min="0" max="59" value="${e.ot_minutes||0}" ${isOffsite?"disabled":""} onchange="updateEntry('${pid}','${e.id}','ot_minutes',this.value)"></label>
-          <label>OT Rate (₱/hr)<input type="number" min="0" step="0.01" value="${e.ot_rate || otRateFromBase(baseRate)}" ${isOffsite?"disabled":""} onchange="updateEntry('${pid}','${e.id}','ot_rate',this.value)"></label>
+          <label>OT Hrs<input type="number" min="0" value="${e.ot_hours || 0}" ${isOffsite ? "disabled" : ""} onchange="updateEntry('${pid}','${e.id}','ot_hours',this.value)"></label>
+          <label>OT Min<input type="number" min="0" max="59" value="${e.ot_minutes || 0}" ${isOffsite ? "disabled" : ""} onchange="updateEntry('${pid}','${e.id}','ot_minutes',this.value)"></label>
+          <label>OT Rate (₱/hr)<input type="number" min="0" step="0.01" value="${e.ot_rate || otRateFromBase(baseRate)}" ${isOffsite ? "disabled" : ""} onchange="updateEntry('${pid}','${e.id}','ot_rate',this.value)"></label>
         </div>
       </div>
-      <div class="entry-section" style="${isOffsite?offOpacity:''}">
+      <div class="entry-section" style="${isOffsite ? offOpacity : ''}">
         <h4>Commission</h4>
         <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;flex-wrap:wrap">
           <label style="margin:0;flex-direction:row;align-items:center;gap:8px;font-size:10px;font-weight:700;letter-spacing:.8px;text-transform:uppercase;color:var(--text-dim)">Brand
-            <select onchange="updateEntry('${pid}','${e.id}','brand',this.value);renderEntries('${pid}')" ${isOffsite?"disabled":""}>
+            <select onchange="updateEntry('${pid}','${e.id}','brand',this.value);renderEntries('${pid}')" ${isOffsite ? "disabled" : ""}>
               <option value="geely" ${e.brand === "geely" ? "selected" : ""}>Geely</option>
-              <option value="byd"   ${e.brand === "byd"   ? "selected" : ""}>BYD</option>
+              <option value="byd"   ${e.brand === "byd" ? "selected" : ""}>BYD</option>
               <option value="other" ${e.brand === "other" ? "selected" : ""}>Other</option>
             </select>
           </label>
@@ -697,34 +696,32 @@ function renderEntries(pid) {
         </div>
         <div class="commission-grid">
           <div class="comm-field-wrap">
-            <label>Sedan/CUV Qty<input type="number" min="0" value="${e.sedan_qty||0}" ${isOffsite?"disabled":""} onchange="updateEntry('${pid}','${e.id}','sedan_qty',this.value)"></label>
-            <div class="div-row"><span class="div-label">Workers</span>${divSel('sedan_div', e.sedan_div||1)}</div>
+            <label>Sedan/CUV Qty<input type="number" min="0" value="${e.sedan_qty || 0}" ${isOffsite ? "disabled" : ""} onchange="updateEntry('${pid}','${e.id}','sedan_qty',this.value)"></label>
+            <div class="div-row"><span class="div-label">Workers</span>${divSel('sedan_div', e.sedan_div || 1)}</div>
           </div>
           <div class="comm-field-wrap">
-            <label>MPV Qty<input type="number" min="0" value="${e.mpv_qty||0}" ${isOffsite?"disabled":""} onchange="updateEntry('${pid}','${e.id}','mpv_qty',this.value)"></label>
-            <div class="div-row"><span class="div-label">Workers</span>${divSel('mpv_div', e.mpv_div||1)}</div>
+            <label>MPV Qty<input type="number" min="0" value="${e.mpv_qty || 0}" ${isOffsite ? "disabled" : ""} onchange="updateEntry('${pid}','${e.id}','mpv_qty',this.value)"></label>
+            <div class="div-row"><span class="div-label">Workers</span>${divSel('mpv_div', e.mpv_div || 1)}</div>
           </div>
           <div class="comm-field-wrap">
-            <label>Sunroof Qty<input type="number" min="0" value="${e.sunroof_qty||0}" ${isOffsite?"disabled":""} onchange="updateEntry('${pid}','${e.id}','sunroof_qty',this.value)"></label>
-            <div class="div-row"><span class="div-label">Workers</span>${divSel('sunroof_div', e.sunroof_div||1)}</div>
+            <label>Sunroof Qty<input type="number" min="0" value="${e.sunroof_qty || 0}" ${isOffsite ? "disabled" : ""} onchange="updateEntry('${pid}','${e.id}','sunroof_qty',this.value)"></label>
+            <div class="div-row"><span class="div-label">Workers</span>${divSel('sunroof_div', e.sunroof_div || 1)}</div>
           </div>
           <div class="comm-field-wrap">
-            <label>Scrapping Qty<input type="number" min="0" value="${e.scrapping_qty||0}" ${isOffsite?"disabled":""} onchange="updateEntry('${pid}','${e.id}','scrapping_qty',this.value)"></label>
-            <div class="div-row"><span class="div-label">Workers</span>${divSel('scrap_div', e.scrap_div||1)}</div>
+            <label>Scrapping Qty<input type="number" min="0" value="${e.scrapping_qty || 0}" ${isOffsite ? "disabled" : ""} onchange="updateEntry('${pid}','${e.id}','scrapping_qty',this.value)"></label>
+            <div class="div-row"><span class="div-label">Workers</span>${divSel('scrap_div', e.scrap_div || 1)}</div>
           </div>
           <div class="comm-field-wrap">
-            <label>Tubes Qty (₱50 ea)<input type="number" min="0" value="${e.tubes_qty||0}" ${isOffsite?"disabled":""} onchange="updateEntry('${pid}','${e.id}','tubes_qty',this.value)"></label>
-            <div class="div-row"><span class="div-label">Workers</span>${divSel('tubes_div', e.tubes_div||1)}</div>
+            <label>Tubes Qty (₱50 ea)<input type="number" min="0" value="${e.tubes_qty || 0}" ${isOffsite ? "disabled" : ""} onchange="updateEntry('${pid}','${e.id}','tubes_qty',this.value)"></label>
+            <div class="div-row"><span class="div-label">Workers</span>${divSel('tubes_div', e.tubes_div || 1)}</div>
           </div>
-          <div class="comm-field-wrap comm-field-wrap--units" id="units-list-${e.id}">
-            <!-- rendered by renderUnitsListUI -->
-          </div>
+          <div id="units-list-${e.id}" style="display:contents"></div>
         </div>
       </div>
       <div class="entry-section">
         <h4>Extras</h4>
         <div class="entry-grid">
-          <label>Gas Allowance<input type="number" min="0" value="${e.gas_allowance||0}" onchange="updateEntry('${pid}','${e.id}','gas_allowance',this.value)"></label>
+          <label>Gas Allowance<input type="number" min="0" value="${e.gas_allowance || 0}" onchange="updateEntry('${pid}','${e.id}','gas_allowance',this.value)"></label>
         </div>
         <label style="margin-top:8px;display:flex;flex-direction:column;gap:6px;font-size:10px;font-weight:700;letter-spacing:.8px;text-transform:uppercase;color:var(--text-dim)">Notes<input value="${e.notes || ""}" onchange="updateEntry('${pid}','${e.id}','notes',this.value)"></label>
       </div>
@@ -809,10 +806,10 @@ function renderDashboard() {
     kpiMonthWrap.innerHTML = `
       <select id="kpi-month-sel" style="font-size:11px;padding:3px 8px;border-radius:6px;border:1px solid var(--border-hi);background:var(--surface);color:var(--text);cursor:pointer" onchange="dashboardMonth=this.value;renderDashboard()">
         ${months.map(m => {
-          const d = new Date(m + "-01");
-          const label = d.toLocaleString("en-US", { month: "short", year: "numeric" });
-          return `<option value="${m}" ${m === (current || dashboardMonth) ? "selected" : ""}>${label}</option>`;
-        }).join("")}
+      const d = new Date(m + "-01");
+      const label = d.toLocaleString("en-US", { month: "short", year: "numeric" });
+      return `<option value="${m}" ${m === (current || dashboardMonth) ? "selected" : ""}>${label}</option>`;
+    }).join("")}
       </select>`;
     if (sel && current) dashboardMonth = current;
   }
@@ -841,16 +838,22 @@ function renderDashboard() {
   chartBar = new Chart(document.getElementById("chart-bar"), {
     type: "bar",
     data: { labels: Object.keys(perEmp), datasets: [{ label: "Net Pay", data: Object.values(perEmp), backgroundColor: Object.keys(perEmp).map((_, i) => accentColors[i % accentColors.length]), borderRadius: 8, borderSkipped: false }] },
-    options: { responsive: true, maintainAspectRatio: false,
+    options: {
+      responsive: true, maintainAspectRatio: false,
       plugins: { legend: { display: false }, tooltip: { backgroundColor: '#fff', borderColor: 'rgba(0,0,0,.1)', borderWidth: 1, titleColor: '#111', bodyColor: '#666', padding: 12, callbacks: { label: ctx => ' ₱' + ctx.parsed.y.toLocaleString('en-PH', { minimumFractionDigits: 2 }) } } },
-      scales: { x: { grid: { display: false }, border: { display: false }, ticks: { color: '#999', font: { size: 11 } } }, y: { grid: { color: 'rgba(0,0,0,.05)' }, border: { display: false }, ticks: { color: '#999', font: { size: 11 }, callback: v => '₱' + (v / 1000).toFixed(0) + 'k' } } } }
+      scales: { x: { grid: { display: false }, border: { display: false }, ticks: { color: '#999', font: { size: 11 } } }, y: { grid: { color: 'rgba(0,0,0,.05)' }, border: { display: false }, ticks: { color: '#999', font: { size: 11 }, callback: v => '₱' + (v / 1000).toFixed(0) + 'k' } } }
+    }
   });
   chartPie = new Chart(document.getElementById("chart-pie"), {
     type: "doughnut",
     data: { labels: Object.keys(breakdown), datasets: [{ data: Object.values(breakdown), backgroundColor: accentColors, borderColor: '#fff', borderWidth: 3, hoverOffset: 6 }] },
-    options: { responsive: true, maintainAspectRatio: false, cutout: '68%',
-      plugins: { legend: { position: 'right', labels: { color: '#777', font: { size: 11 }, boxWidth: 10, boxHeight: 10, borderRadius: 3, padding: 14, usePointStyle: true, pointStyle: 'rectRounded' } },
-        tooltip: { backgroundColor: '#fff', borderColor: 'rgba(0,0,0,.1)', borderWidth: 1, titleColor: '#111', bodyColor: '#666', padding: 12, callbacks: { label: ctx => ' ₱' + ctx.parsed.toLocaleString('en-PH', { minimumFractionDigits: 2 }) } } } }
+    options: {
+      responsive: true, maintainAspectRatio: false, cutout: '68%',
+      plugins: {
+        legend: { position: 'right', labels: { color: '#777', font: { size: 11 }, boxWidth: 10, boxHeight: 10, borderRadius: 3, padding: 14, usePointStyle: true, pointStyle: 'rectRounded' } },
+        tooltip: { backgroundColor: '#fff', borderColor: 'rgba(0,0,0,.1)', borderWidth: 1, titleColor: '#111', bodyColor: '#666', padding: 12, callbacks: { label: ctx => ' ₱' + ctx.parsed.toLocaleString('en-PH', { minimumFractionDigits: 2 }) } }
+      }
+    }
   });
 
   renderEarningsHistory();
@@ -932,7 +935,7 @@ function renderSettings() {
   const r = COMMISSION_RATES;
   const el = document.getElementById("settings-content");
   if (!el) return;
-  const BRANDS = ["byd","geely","other"];
+  const BRANDS = ["byd", "geely", "other"];
   el.innerHTML = `
     <div class="card">
       <div class="card-head">
@@ -951,17 +954,17 @@ function renderSettings() {
                 <span style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:var(--text-dim)">Default Qty</span>
               </div>
               ${[
-                { key:"sedan",      rateKey:"sedan",      label:"Sedan / CUV" },
-                { key:"mpv",        rateKey:"mpv",        label:"MPV" },
-                { key:"sunroof",    rateKey:"sunroof",    label:"Sunroof" },
-                { key:"scrapping",  rateKey:"scrap",      label:"Scrap" },
-                { key:"tubes",      rateKey:"tubes_rate", label:"Tubes (₱50 ea)" },
-                { key:"units",      rateKey:"units_rate", label:"Units" },
-              ].map(f => `
+      { key: "sedan", rateKey: "sedan", label: "Sedan / CUV" },
+      { key: "mpv", rateKey: "mpv", label: "MPV" },
+      { key: "sunroof", rateKey: "sunroof", label: "Sunroof" },
+      { key: "scrapping", rateKey: "scrap", label: "Scrap" },
+      { key: "tubes", rateKey: "tubes_rate", label: "Tubes (₱50 ea)" },
+      { key: "units", rateKey: "units_rate", label: "Units" },
+    ].map(f => `
                 <div style="display:grid;grid-template-columns:160px 1fr 1fr;gap:10px;align-items:center">
                   <span style="font-size:12px;font-weight:600;color:var(--text)">${f.label}</span>
-                  <input type="number" id="sr-${brand}-${f.rateKey}" min="0" value="${r[brand][f.rateKey]||0}" placeholder="₱ rate">
-                  <input type="number" id="sq-${brand}-${f.key}" min="0" value="${r[brand][f.key+'_qty']||0}" placeholder="default qty">
+                  <input type="number" id="sr-${brand}-${f.rateKey}" min="0" value="${r[brand][f.rateKey] || 0}" placeholder="₱ rate">
+                  <input type="number" id="sq-${brand}-${f.key}" min="0" value="${r[brand][f.key + '_qty'] || 0}" placeholder="default qty">
                 </div>
               `).join("")}
             </div>
@@ -973,22 +976,22 @@ function renderSettings() {
 }
 
 function saveSettings() {
-  const brands = ["byd","geely","other"];
+  const brands = ["byd", "geely", "other"];
   const rates = {};
   brands.forEach(b => {
     rates[b] = {
-      sedan:       +document.getElementById(`sr-${b}-sedan`).value      || 0,
-      mpv:         +document.getElementById(`sr-${b}-mpv`).value        || 0,
-      sunroof:     +document.getElementById(`sr-${b}-sunroof`).value    || 0,
-      scrap:       +document.getElementById(`sr-${b}-scrap`).value      || 0,
-      tubes_rate:  +document.getElementById(`sr-${b}-tubes_rate`).value || 0,
-      units_rate:  +document.getElementById(`sr-${b}-units_rate`).value || 0,
-      sedan_qty:   +document.getElementById(`sq-${b}-sedan`).value      || 0,
-      mpv_qty:     +document.getElementById(`sq-${b}-mpv`).value        || 0,
-      sunroof_qty: +document.getElementById(`sq-${b}-sunroof`).value    || 0,
-      scrapping_qty: +document.getElementById(`sq-${b}-scrapping`).value|| 0,
-      tubes_qty:   +document.getElementById(`sq-${b}-tubes`).value      || 0,
-      units_qty:   +document.getElementById(`sq-${b}-units`).value      || 0,
+      sedan: +document.getElementById(`sr-${b}-sedan`).value || 0,
+      mpv: +document.getElementById(`sr-${b}-mpv`).value || 0,
+      sunroof: +document.getElementById(`sr-${b}-sunroof`).value || 0,
+      scrap: +document.getElementById(`sr-${b}-scrap`).value || 0,
+      tubes_rate: +document.getElementById(`sr-${b}-tubes_rate`).value || 0,
+      units_rate: +document.getElementById(`sr-${b}-units_rate`).value || 0,
+      sedan_qty: +document.getElementById(`sq-${b}-sedan`).value || 0,
+      mpv_qty: +document.getElementById(`sq-${b}-mpv`).value || 0,
+      sunroof_qty: +document.getElementById(`sq-${b}-sunroof`).value || 0,
+      scrapping_qty: +document.getElementById(`sq-${b}-scrapping`).value || 0,
+      tubes_qty: +document.getElementById(`sq-${b}-tubes`).value || 0,
+      units_qty: +document.getElementById(`sq-${b}-units`).value || 0,
     };
   });
   COMMISSION_RATES = rates;
@@ -1021,7 +1024,7 @@ function setRowHeight(ws, idx, h) { ws['!rows'] = ws['!rows'] || []; ws['!rows']
 
 function exportTimestamp() {
   const d = new Date();
-  return d.toISOString().replace(/[-:]/g,"").replace("T","_").slice(0,15);
+  return d.toISOString().replace(/[-:]/g, "").replace("T", "_").slice(0, 15);
 }
 function exportCSV(pid) {
   const p = state.periods.find(x => x.id === pid);
@@ -1058,7 +1061,7 @@ function exportCSV(pid) {
 
   const netR = aoa.length;
   aoa.push([{ v: "NET PAY", t: "s", s: { font: { name: "Calibri", sz: 14, bold: true, color: { rgb: "FFFFFF" } }, fill: { fgColor: { rgb: "111111" } }, alignment: { horizontal: "left", vertical: "center" }, border: XLS_BORDERS } },
-            { v: Number(t.net || 0), t: "n", s: { font: { name: "Calibri", sz: 14, bold: true, color: { rgb: "FFFFFF" } }, fill: { fgColor: { rgb: "111111" } }, alignment: { horizontal: "right", vertical: "center" }, numFmt: '"PHP "#,##0.00', border: XLS_BORDERS } }]);
+  { v: Number(t.net || 0), t: "n", s: { font: { name: "Calibri", sz: 14, bold: true, color: { rgb: "FFFFFF" } }, fill: { fgColor: { rgb: "111111" } }, alignment: { horizontal: "right", vertical: "center" }, numFmt: '"PHP "#,##0.00', border: XLS_BORDERS } }]);
   setRowHeight(aoa, netR, 28);
   aoa.push([xText("")]);
 
@@ -1251,11 +1254,11 @@ function exportPDF(pid) {
     styles: { font: "helvetica", fontSize: 9, cellPadding: 5, lineColor: [180, 180, 180], lineWidth: 0.4, textColor: 20 },
     body: [
       [{ content: "Employee", styles: { fontStyle: "bold", fillColor: [240, 240, 240] } }, emp.name,
-       { content: "Pay Period", styles: { fontStyle: "bold", fillColor: [240, 240, 240] } }, `${p.start_date} to ${p.end_date}`],
+      { content: "Pay Period", styles: { fontStyle: "bold", fillColor: [240, 240, 240] } }, `${p.start_date} to ${p.end_date}`],
       [{ content: "Position", styles: { fontStyle: "bold", fillColor: [240, 240, 240] } }, emp.position,
-       { content: "Pay Date", styles: { fontStyle: "bold", fillColor: [240, 240, 240] } }, p.pay_date],
+      { content: "Pay Date", styles: { fontStyle: "bold", fillColor: [240, 240, 240] } }, p.pay_date],
       [{ content: "Base Rate", styles: { fontStyle: "bold", fillColor: [240, 240, 240] } }, `PHP ${(+emp.base_rate || 1000).toLocaleString()}/day`,
-       { content: "Days Worked", styles: { fontStyle: "bold", fillColor: [240, 240, 240] } }, String(p.entries.length)],
+      { content: "Days Worked", styles: { fontStyle: "bold", fillColor: [240, 240, 240] } }, String(p.entries.length)],
     ],
     columnStyles: { 0: { cellWidth: 90 }, 1: { cellWidth: 260 }, 2: { cellWidth: 90 }, 3: { cellWidth: "auto" } }
   });
@@ -1267,7 +1270,7 @@ function exportPDF(pid) {
     startY: y, margin: { left: margin }, tableWidth: halfW, theme: "grid",
     head: [["EARNINGS", "Amount (PHP)"]],
     body: [["Basic Salary", fmt(t.basic)], ["Overtime Pay", fmt(t.ot)], ["Commission", fmt(t.commission)], ["Holiday Pay", fmt(t.holiday)], ["Gas Allowance", fmt(t.gas)],
-      [{ content: "TOTAL EARNINGS", styles: { fontStyle: "bold", fillColor: [230, 230, 230] } }, { content: fmt(t.earnings), styles: { fontStyle: "bold", fillColor: [230, 230, 230], halign: "right" } }]],
+    [{ content: "TOTAL EARNINGS", styles: { fontStyle: "bold", fillColor: [230, 230, 230] } }, { content: fmt(t.earnings), styles: { fontStyle: "bold", fillColor: [230, 230, 230], halign: "right" } }]],
     headStyles: { fillColor: [30, 30, 30], textColor: 255, halign: "left", fontStyle: "bold" },
     styles: { font: "helvetica", fontSize: 9, cellPadding: 5, lineColor: [180, 180, 180], lineWidth: 0.4, textColor: 20 },
     columnStyles: { 1: { halign: "right" } }
@@ -1305,12 +1308,12 @@ function exportPDF(pid) {
       const otH = +e.ot_hours || 0;
       const otM = +e.ot_minutes || 0;
       // Show qty/div for each field e.g. "11" or "25÷2"
-      const qd = (qty, div) => { const q = qty||0; const d = div||1; return q ? (d>1?`${q}÷${d}`:`${q}`) : "—"; };
-      return [e.date, e.location || "—", to12h(e.time_in)||"—", to12h(e.time_out)||"—", type, (e.brand||"").toUpperCase(),
-        qd(e.sedan_qty, e.sedan_div), qd(e.mpv_qty, e.mpv_div), qd(e.sunroof_qty, e.sunroof_div),
-        qd(e.scrapping_qty, e.scrap_div), qd(e.tubes_qty, e.tubes_div),
-        otH||"—", otM||"—",
-        fmt(c.commission), fmt(c.otPay), fmt(c.holiday), fmt(c.gas), fmt(c.total)];
+      const qd = (qty, div) => { const q = qty || 0; const d = div || 1; return q ? (d > 1 ? `${q}÷${d}` : `${q}`) : "—"; };
+      return [e.date, e.location || "—", to12h(e.time_in) || "—", to12h(e.time_out) || "—", type, (e.brand || "").toUpperCase(),
+      qd(e.sedan_qty, e.sedan_div), qd(e.mpv_qty, e.mpv_div), qd(e.sunroof_qty, e.sunroof_div),
+      qd(e.scrapping_qty, e.scrap_div), qd(e.tubes_qty, e.tubes_div),
+      otH || "—", otM || "—",
+      fmt(c.commission), fmt(c.otPay), fmt(c.holiday), fmt(c.gas), fmt(c.total)];
     }),
     headStyles: { fillColor: [30, 30, 30], textColor: 255, fontSize: 7.5, fontStyle: "bold", halign: "center" },
     styles: { font: "helvetica", fontSize: 7.5, cellPadding: 3.5, lineColor: [180, 180, 180], lineWidth: 0.3, textColor: 20, overflow: "linebreak" },
