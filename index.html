@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Techtune Payroll System</title>
+  <link rel="stylesheet" href="styles.css" />
+  <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/jspdf-autotable@3.8.2/dist/jspdf.plugin.autotable.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+  <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+
+<body>
+
+  <header class="topbar">
+    <div class="brand">
+      <div class="brand-icon">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"
+          stroke-linecap="round" stroke-linejoin="round">
+          <rect x="2" y="5" width="20" height="14" rx="2" />
+          <line x1="2" y1="10" x2="22" y2="10" />
+        </svg>
+      </div>
+      <div>
+        <h1>Techtune Payroll</h1>
+        <small>Tint Installer Payroll System</small>
+      </div>
+    </div>
+    <nav class="tabs">
+      <button class="tab active" data-tab="dashboard"><i data-lucide="layout-dashboard"></i> Dashboard</button>
+      <button class="tab" data-tab="employees"><i data-lucide="users"></i> Employees</button>
+      <button class="tab" data-tab="payroll"><i data-lucide="file-text"></i> Payroll</button>
+    </nav>
+  </header>
+
+  <main>
+
+    <!-- DASHBOARD -->
+    <section class="view active" id="view-dashboard">
+      <div class="kpi-grid">
+        <div class="kpi kpi-blue">
+          <div class="kpi-icon"><i data-lucide="users"></i></div>
+          <div class="kpi-body"><small>Employees</small><strong id="kpi-emp">0</strong></div>
+        </div>
+        <div class="kpi kpi-green">
+          <div class="kpi-icon"><i data-lucide="calendar-days"></i></div>
+          <div class="kpi-body"><small>Pay Periods</small><strong id="kpi-per">0</strong></div>
+        </div>
+        <div class="kpi kpi-amber">
+          <div class="kpi-icon"><i data-lucide="banknote"></i></div>
+          <div class="kpi-body"><small>Total Net Pay</small><strong id="kpi-net">₱0.00</strong></div>
+        </div>
+        <div class="kpi kpi-purple">
+          <div class="kpi-icon"><i data-lucide="trending-up"></i></div>
+          <div class="kpi-body"><small>This Month</small><strong id="kpi-month">₱0.00</strong></div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-head">
+          <div>
+            <h2><i data-lucide="download"></i> Export Summary</h2>
+            <small>Download payroll reports as CSV</small>
+          </div>
+        </div>
+        <div class="row">
+          <button class="btn" onclick="exportSummaryCSV(7)"><i data-lucide="file-spreadsheet"></i> Weekly CSV</button>
+          <button class="btn" onclick="exportSummaryCSV(14)"><i data-lucide="file-spreadsheet"></i> Bi-weekly
+            CSV</button>
+        </div>
+      </div>
+
+      <div class="grid-2">
+        <!-- BAR CHART -->
+        <div class="card chart-card">
+          <div class="card-head chart-head">
+            <div>
+              <h2><i data-lucide="bar-chart-3"></i> Net Pay by Employee</h2>
+              <small>Cumulative payroll per person</small>
+            </div>
+            <div class="chart-badge">Overview</div>
+          </div>
+          <div class="chart-container">
+            <canvas id="chart-bar"></canvas>
+          </div>
+        </div>
+
+        <!-- PIE CHART -->
+        <div class="card chart-card">
+          <div class="card-head chart-head">
+            <div>
+              <h2><i data-lucide="pie-chart"></i> Earnings Breakdown</h2>
+              <small>Salary composition by type</small>
+            </div>
+            <div class="chart-badge">Live</div>
+          </div>
+          <div class="chart-container pie-wrap">
+            <canvas id="chart-pie"></canvas>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- EMPLOYEES -->
+    <section class="view" id="view-employees">
+      <div class="card">
+        <div class="card-head">
+          <div>
+            <h2><i data-lucide="users"></i> Employees</h2>
+            <small>Manage your team roster</small>
+          </div>
+          <button class="btn primary" onclick="openEmpDialog()"><i data-lucide="plus"></i> Add Employee</button>
+        </div>
+        <div id="emp-list" class="list"></div>
+      </div>
+    </section>
+
+    <!-- PAYROLL -->
+    <section class="view" id="view-payroll">
+      <div class="card">
+        <div class="card-head">
+          <div>
+            <h2><i data-lucide="file-text"></i> Pay Periods</h2>
+            <small>Track and manage pay cycles</small>
+          </div>
+          <div class="row">
+            <select id="pp-emp" style="width:auto;min-width:180px" onchange="renderPayroll()"></select>
+            <button class="btn primary" onclick="addPeriod()"><i data-lucide="plus"></i> New Period</button>
+          </div>
+        </div>
+        <div id="period-list" class="list"></div>
+      </div>
+      <div id="period-detail"></div>
+    </section>
+
+  </main>
+
+  <!-- Employee Modal -->
+  <div class="modal" id="emp-modal">
+    <div class="modal-content">
+      <div class="modal-head">
+        <h3><i data-lucide="user-plus"></i> Add Employee</h3>
+        <button class="icon-btn" onclick="closeEmpDialog()"><i data-lucide="x"></i></button>
+      </div>
+      <div class="form">
+        <label>Full Name<input id="emp-name" placeholder="e.g. Juan dela Cruz" /></label>
+        <label>Position<input id="emp-pos" value="Automotive Window Tint Installer" /></label>
+        <label>Base Rate (per day)
+          <select id="emp-base">
+            <option value="1000">₱1,000 / day</option>
+            <option value="1100">₱1,100 / day</option>
+            <option value="1200">₱1,200 / day</option>
+          </select>
+        </label>
+        <div class="rate-info-box">
+          <i data-lucide="info"></i>
+          <div>
+            <strong>Half-day = ½ base rate</strong>
+            <span>Toggle "Half Day" on a daily entry to pay half the base rate.</span>
+          </div>
+        </div>
+      </div>
+      <div class="modal-foot">
+        <button class="btn" onclick="closeEmpDialog()">Cancel</button>
+        <button class="btn primary" onclick="saveEmp()"><i data-lucide="check"></i> Save Employee</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="toast"></div>
+  <script src="supabase.js"></script>
+  <script src="app.js"></script>
+</body>
+
+</html>
