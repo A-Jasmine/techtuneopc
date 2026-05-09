@@ -568,14 +568,14 @@ function renderUnitsListUI(pid, eid) {
   wrap.innerHTML = list.map((u, i) => `
     <div class="comm-field-wrap comm-field-wrap--unit-row">
       <label style="flex:1">
-        <span style="display:flex;align-items:center;justify-content:space-between;gap:4px">
-          <span>Units Qty <span style="font-weight:400;font-size:10px;color:var(--text-dim)">(₱${(r.units_rate||0).toLocaleString()}/ea)</span></span>
-          <button type="button" class="icon-btn" style="width:20px;height:20px;padding:0;flex-shrink:0;color:var(--danger)" title="Remove row" ${disAttr} onclick="removeUnitsRow('${pid}','${eid}',${i})"><i data-lucide="x"></i></button>
-        </span>
-        <input type="number" min="0" value="${u.qty||0}" style="width:72px;text-align:center;margin-top:4px" ${disAttr} onchange="updateUnitsRow('${pid}','${eid}',${i},'qty',this.value)">
+        <span>Units Qty <span style="font-weight:400;font-size:10px;color:var(--text-dim)">(₱${(r.units_rate||0).toLocaleString()}/ea)</span></span>
+        <div style="display:flex;align-items:center;gap:4px;margin-top:4px">
+          <input type="number" min="0" value="${u.qty||0}" style="width:72px;text-align:center" ${disAttr} onchange="updateUnitsRow('${pid}','${eid}',${i},'qty',this.value)">
+          <button type="button" class="icon-btn" style="width:26px;height:26px;padding:0;flex-shrink:0;color:var(--danger);border:1px solid var(--border);border-radius:6px" title="Remove" ${disAttr} onclick="removeUnitsRow('${pid}','${eid}',${i})"><i data-lucide="x"></i></button>
+        </div>
       </label>
       <div class="div-row"><span class="div-label">Workers</span>
-        <select style="width:80px;font-size:12px" title="Divide by (# of workers)" ${disAttr} onchange="updateUnitsRow('${pid}','${eid}',${i},'div',this.value)">
+        <select style="width:72px;font-size:12px" title="Divide by (# of workers)" ${disAttr} onchange="updateUnitsRow('${pid}','${eid}',${i},'div',this.value)">
           <option value="1" ${(+u.div||1)===1?"selected":""}>÷1</option>
           <option value="2" ${(+u.div||1)===2?"selected":""}>÷2</option>
           <option value="3" ${(+u.div||1)===3?"selected":""}>÷3</option>
@@ -584,7 +584,7 @@ function renderUnitsListUI(pid, eid) {
       </div>
     </div>`).join("") + `
   <div class="comm-field-wrap comm-field-wrap--add-unit">
-    <button type="button" class="btn" style="width:100%;font-size:12px;gap:6px" ${disAttr} onclick="addUnitsRow('${pid}','${eid}')"><i data-lucide="plus"></i> Add Unit</button>
+    <button type="button" class="btn" style="font-size:12px;padding:6px 10px;width:auto" ${disAttr} onclick="addUnitsRow('${pid}','${eid}')"><i data-lucide="plus"></i> Add Unit</button>
   </div>`;
   lucide.createIcons();
 }
