@@ -19,7 +19,8 @@ const otRateFromBase = b => round2((b || 1000) / 6.4);
 // =============== CALC ===============
 function calcEntryBase(e, baseRate) {
   if (e.is_offset) return OFFSET_AMT;
-  if (e.is_holiday) return 0;
+  // Holiday no longer zeroes the base — employees still get paid their daily rate
+  // when they go onsite on a holiday. Holiday Pay is added separately on top.
   const br = baseRate || 1000;
   return e.is_halfday ? round2(br / 2) : br;
 }
@@ -98,12 +99,19 @@ async function saveEmp() {
 }
 
 async function deleteEmp(id) {
-  if (!confirm("Delete this employee and all their pay periods?")) return;
+  const emp = state.employees.find(e => e.id === id);
+  const ok = await confirmDanger({
+    title: "Delete Employee?",
+    message: `This will permanently delete <strong>${emp ? emp.name : 'this employee'}</strong> and ALL their pay periods, entries and deductions. This action cannot be undone.`,
+    confirmText: "Delete Employee",
+  });
+  if (!ok) return;
   const { error } = await sb.from('employees').delete().eq('id', id);
   if (error) return toast("Delete failed: " + error.message);
   state.employees = state.employees.filter(e => e.id !== id);
   state.periods = state.periods.filter(p => p.employee_id !== id);
   renderAll();
+  toast("Employee deleted");
 }
 
 function renderEmployees() {
@@ -142,28 +150,74 @@ async function addPeriod() {
 }
 
 async function deletePeriod(id) {
-  if (!confirm("Delete this pay period?")) return;
+  const p = state.periods.find(x => x.id === id);
+  const ok = await confirmDanger({
+    title: "Delete Pay Period?",
+    message: `This will permanently delete the pay period <strong>${p ? p.start_date + ' → ' + p.end_date : ''}</strong>, including all daily entries and deductions. This cannot be undone.`,
+    confirmText: "Delete Period",
+  });
+  if (!ok) return;
   const { error } = await sb.from('pay_periods').delete().eq('id', id);
   if (error) return toast("Delete failed: " + error.message);
   state.periods = state.periods.filter(p => p.id !== id);
   renderPayroll();
+  toast("Pay period deleted");
 }
+
+const periodFilter = { month: "", search: "" };
 
 function renderPayroll() {
   refreshEmpDropdown();
   const selectedEmpId = document.getElementById("pp-emp").value;
   const list = document.getElementById("period-list");
-  const filtered = selectedEmpId ? state.periods.filter(p => p.employee_id === selectedEmpId) : [];
+  const filterBar = document.getElementById("pp-filter-bar");
 
   if (!selectedEmpId) {
+    if (filterBar) filterBar.style.display = "none";
     list.innerHTML = '<div class="empty-state"><i data-lucide="user-check" style="width:32px;height:32px;opacity:.4"></i><div>Select an employee above to view their pay periods.</div></div>';
     document.getElementById("period-detail").innerHTML = "";
     lucide.createIcons();
     return;
   }
+
+  let empPeriods = state.periods.filter(p => p.employee_id === selectedEmpId);
+
+  // Build month options from this employee's periods
+  const monthSet = new Set();
+  empPeriods.forEach(p => { if (p.pay_date) monthSet.add(p.pay_date.slice(0, 7)); });
+  const months = [...monthSet].sort().reverse();
+
+  if (filterBar) {
+    filterBar.style.display = "flex";
+    const monthSel = document.getElementById("pp-month");
+    const searchInp = document.getElementById("pp-search");
+    if (monthSel) {
+      const cur = periodFilter.month;
+      monthSel.innerHTML = '<option value="">All months</option>' + months.map(m => {
+        const d = new Date(m + "-01");
+        const label = d.toLocaleString("en-US", { month: "long", year: "numeric" });
+        return `<option value="${m}" ${m === cur ? "selected" : ""}>${label}</option>`;
+      }).join("");
+    }
+    if (searchInp && document.activeElement !== searchInp) searchInp.value = periodFilter.search;
+  }
+
+  let filtered = empPeriods.slice();
+  if (periodFilter.month) filtered = filtered.filter(p => (p.pay_date || "").startsWith(periodFilter.month));
+  if (periodFilter.search) {
+    const q = periodFilter.search.toLowerCase();
+    filtered = filtered.filter(p =>
+      (p.start_date || "").includes(q) || (p.end_date || "").includes(q) || (p.pay_date || "").includes(q)
+    );
+  }
+  filtered.sort((a, b) => (b.start_date || "").localeCompare(a.start_date || ""));
+
   if (filtered.length === 0) {
-    list.innerHTML = '<div class="empty-state">No pay periods for this employee yet — click <strong>New Period</strong>.</div>';
+    list.innerHTML = empPeriods.length === 0
+      ? '<div class="empty-state">No pay periods for this employee yet — click <strong>New Period</strong>.</div>'
+      : '<div class="empty-state">No periods match your filter.</div>';
     document.getElementById("period-detail").innerHTML = "";
+    lucide.createIcons();
     return;
   }
   list.innerHTML = filtered.map(p => {
@@ -178,6 +232,19 @@ function renderPayroll() {
     </div>`;
   }).join("");
   lucide.createIcons();
+}
+
+function onPeriodFilterChange() {
+  const m = document.getElementById("pp-month");
+  const s = document.getElementById("pp-search");
+  periodFilter.month = m ? m.value : "";
+  periodFilter.search = s ? s.value.trim() : "";
+  renderPayroll();
+}
+function clearPeriodFilter() {
+  periodFilter.month = "";
+  periodFilter.search = "";
+  renderPayroll();
 }
 
 function editPeriod(id) {
@@ -249,6 +316,13 @@ async function addEntry(pid) {
 }
 async function delEntry(pid, eid) {
   const p = state.periods.find(x => x.id === pid);
+  const e = p.entries.find(x => x.id === eid);
+  const ok = await confirmDanger({
+    title: "Delete Daily Entry?",
+    message: `This will remove the entry for <strong>${e ? e.date : 'this day'}</strong> from this pay period. This action cannot be undone.`,
+    confirmText: "Delete Entry",
+  });
+  if (!ok) return;
   const { error } = await sb.from('entries').delete().eq('id', eid);
   if (error) return toast("Delete failed: " + error.message);
   p.entries = p.entries.filter(e => e.id !== eid);
@@ -295,7 +369,7 @@ function renderEntries(pid) {
   const wrap = document.getElementById("entries-" + pid);
   wrap.innerHTML = p.entries.map(e => {
     const c = calcEntry(e, baseRate);
-    const baseLabel = e.is_offset ? `Offset day` : e.is_holiday ? `Holiday (no base)` : e.is_halfday ? `Half day · ₱${(baseRate/2).toLocaleString()}` : `Full day · ₱${baseRate.toLocaleString()}`;
+    const baseLabel = e.is_offset ? `Offset day` : e.is_holiday ? (e.is_halfday ? `Holiday · Half day · ₱${(baseRate/2).toLocaleString()}` : `Holiday onsite · ₱${baseRate.toLocaleString()}`) : e.is_halfday ? `Half day · ₱${(baseRate/2).toLocaleString()}` : `Full day · ₱${baseRate.toLocaleString()}`;
     return `<div class="entry" id="entry-${e.id}">
       <div class="entry-grid">
         <label>Date<input type="date" value="${e.date}" onchange="updateEntry('${pid}','${e.id}','date',this.value)"></label>
@@ -318,7 +392,7 @@ function renderEntries(pid) {
           <label class="toggle-check tone-purple ${e.is_holiday ? "is-checked" : ""}">
             <input type="checkbox" ${e.is_holiday ? "checked" : ""} onchange="updateEntry('${pid}','${e.id}','is_holiday',this.checked);this.closest('.toggle-check').classList.toggle('is-checked',this.checked)">
             <span class="toggle-box"><svg viewBox="0 0 14 12" fill="none"><polyline points="2,6.5 5.5,10 12,2.5" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
-            Holiday Pay (₱1,000)
+            Holiday Pay (+₱1,000 bonus)
           </label>
           <label class="toggle-check tone-blue ${e.is_offset ? "is-checked" : ""}">
             <input type="checkbox" ${e.is_offset ? "checked" : ""} onchange="updateEntry('${pid}','${e.id}','is_offset',this.checked);this.closest('.toggle-check').classList.toggle('is-checked',this.checked)">
@@ -379,6 +453,13 @@ async function addDed(pid) {
 }
 async function delDed(pid, did) {
   const p = state.periods.find(x => x.id === pid);
+  const d = p.deductions.find(x => x.id === did);
+  const ok = await confirmDanger({
+    title: "Delete Deduction?",
+    message: `Remove <strong>${d && d.label ? d.label : 'this deduction'}</strong>${d && d.amount ? ' (' + peso(d.amount) + ')' : ''} from this pay period?`,
+    confirmText: "Delete",
+  });
+  if (!ok) return;
   const { error } = await sb.from('deductions').delete().eq('id', did);
   if (error) return toast("Delete failed: " + error.message);
   p.deductions = p.deductions.filter(d => d.id !== did);
@@ -568,8 +649,73 @@ function toast(msg) { const el = document.getElementById("toast"); el.textConten
 
 async function renderAll() { renderEmployees(); renderPayroll(); renderDashboard(); }
 
+// =============== CONFIRM MODAL ===============
+function confirmDanger({ title = "Are you sure?", message = "", confirmText = "Delete", cancelText = "Cancel" } = {}) {
+  return new Promise(resolve => {
+    let m = document.getElementById("confirm-modal");
+    if (!m) {
+      m = document.createElement("div");
+      m.id = "confirm-modal";
+      m.className = "modal";
+      m.innerHTML = `
+        <div class="modal-content confirm-content">
+          <div class="confirm-icon"><i data-lucide="alert-triangle"></i></div>
+          <h3 id="cm-title"></h3>
+          <p id="cm-msg"></p>
+          <div class="confirm-actions">
+            <button class="btn" id="cm-cancel"></button>
+            <button class="btn danger" id="cm-ok"></button>
+          </div>
+        </div>`;
+      document.body.appendChild(m);
+    }
+    document.getElementById("cm-title").textContent = title;
+    document.getElementById("cm-msg").innerHTML = message;
+    const okBtn = document.getElementById("cm-ok");
+    const cancelBtn = document.getElementById("cm-cancel");
+    okBtn.textContent = confirmText;
+    cancelBtn.textContent = cancelText;
+    m.classList.add("open");
+    if (window.lucide) lucide.createIcons();
+    const cleanup = (val) => {
+      m.classList.remove("open");
+      okBtn.onclick = null; cancelBtn.onclick = null; m.onclick = null;
+      resolve(val);
+    };
+    okBtn.onclick = () => cleanup(true);
+    cancelBtn.onclick = () => cleanup(false);
+    m.onclick = (e) => { if (e.target === m) cleanup(false); };
+  });
+}
+
+// =============== AUTH ===============
+async function logout() {
+  const ok = await confirmDanger({
+    title: "Sign out?",
+    message: "You'll need to sign in again to access payroll.",
+    confirmText: "Sign Out",
+  });
+  if (!ok) return;
+  await sb.auth.signOut();
+  location.href = "login.html";
+}
+
+async function requireAuth() {
+  const { data: { session } } = await sb.auth.getSession();
+  if (!session) {
+    location.href = "login.html";
+    return null;
+  }
+  // Show user email in the topbar if there's a slot for it
+  const ue = document.getElementById("user-email");
+  if (ue) ue.textContent = session.user.email || "";
+  return session;
+}
+
 // =============== BOOT ===============
 (async () => {
+  const session = await requireAuth();
+  if (!session) return;
   toast("Connecting to Supabase…");
   try {
     await loadAll();
@@ -580,3 +726,4 @@ async function renderAll() { renderEmployees(); renderPayroll(); renderDashboard
     toast("Failed to load. Check supabase.js config.");
   }
 })();
+

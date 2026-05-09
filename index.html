@@ -34,6 +34,10 @@
       <button class="tab" data-tab="employees"><i data-lucide="users"></i> Employees</button>
       <button class="tab" data-tab="payroll"><i data-lucide="file-text"></i> Payroll</button>
     </nav>
+    <div class="user-menu">
+      <span class="user-email" id="user-email"></span>
+      <button class="btn ghost" onclick="logout()" title="Sign out"><i data-lucide="log-out"></i> Sign out</button>
+    </div>
   </header>
 
   <main>
@@ -130,6 +134,17 @@
             <select id="pp-emp" style="width:auto;min-width:180px" onchange="renderPayroll()"></select>
             <button class="btn primary" onclick="addPeriod()"><i data-lucide="plus"></i> New Period</button>
           </div>
+        </div>
+        <div id="pp-filter-bar" class="filter-bar" style="display:none">
+          <div class="filter-field">
+            <i data-lucide="calendar-range"></i>
+            <select id="pp-month" onchange="onPeriodFilterChange()"></select>
+          </div>
+          <div class="filter-field grow">
+            <i data-lucide="search"></i>
+            <input id="pp-search" placeholder="Search by date (YYYY-MM-DD)..." oninput="onPeriodFilterChange()" />
+          </div>
+          <button class="btn ghost" onclick="clearPeriodFilter()"><i data-lucide="x"></i> Clear</button>
         </div>
         <div id="period-list" class="list"></div>
       </div>
