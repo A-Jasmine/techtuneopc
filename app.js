@@ -784,6 +784,8 @@ function exportTimestamp() {
   const d = new Date();
   return d.toISOString().replace(/[-:]/g,"").replace("T","_").slice(0,15);
 }
+
+function exportCSV(pid) {
   const p = state.periods.find(x => x.id === pid);
   const emp = state.employees.find(e => e.id === p.employee_id);
   const t = calcPeriod(p);
