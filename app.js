@@ -89,15 +89,16 @@ function parseVehicleLists(e) {
     try { parsed = JSON.parse(e.vehicle_lists); } catch (ex) {}
   }
   if (!parsed) parsed = {};
-  // For each type, ensure it's an array; seed from legacy scalar fields if empty
+  // For each type, ensure it's an array; seed from legacy scalar fields if empty,
+  // always providing at least one default row so fields are visible without clicking Add.
   VEHICLE_TYPES.forEach(t => {
     if (!Array.isArray(parsed[t]) || parsed[t].length === 0) {
       const legacyQtyKey = t === "scrap" ? "scrapping_qty" : t + "_qty";
       const legacyDivKey = t === "scrap" ? "scrap_div" : t + "_div";
       const legacyQty = +e[legacyQtyKey] || 0;
       const legacyDiv = +e[legacyDivKey] || 1;
-      // Only seed a row if there's actual legacy data, otherwise empty array
-      parsed[t] = legacyQty > 0 ? [{ qty: legacyQty, div: legacyDiv }] : [];
+      // Seed with legacy data if available, otherwise one blank row so the field is visible by default
+      parsed[t] = [{ qty: legacyQty, div: legacyDiv > 0 ? legacyDiv : 1 }];
     }
   });
   return parsed;
@@ -582,7 +583,7 @@ async function addEntry(pid) {
     divide_by: 1,
     sedan_div: 1, mpv_div: 1, sunroof_div: 1, scrap_div: 1, tubes_div: 1,
     gas_allowance: 0, is_holiday: false, is_offset: false, is_halfday: false,
-    holiday_type: "none", notes: ""
+    holiday_type: "none", holiday_notes: "", notes: ""
   };
   const { data, error } = await sb.from('entries').insert(newEntry).select().single();
   if (error) return toast("Add entry failed: " + error.message);
@@ -612,7 +613,7 @@ async function delEntry(pid, eid) {
 
 const NUMERIC_KEYS = ["sedan_qty", "mpv_qty", "sunroof_qty", "scrapping_qty", "tubes_qty", "divide_by", "sedan_div", "mpv_div", "sunroof_div", "scrap_div", "tubes_div", "ot_hours", "ot_minutes", "gas_allowance", "ot_rate"];
 const BOOL_KEYS = ["is_holiday", "is_offset", "is_halfday"];
-const STRING_KEYS = ["holiday_type"];
+const STRING_KEYS = ["holiday_type", "holiday_notes"];
 
 async function updateEntry(pid, eid, key, val) {
   const p = state.periods.find(x => x.id === pid);
@@ -716,20 +717,28 @@ function renderVehicleListUI(pid, eid, type) {
   wrap.innerHTML = rows.map((row, i) => {
     const divOpts = Array.from({length:10},(_,k)=>k+1).map(n=>`<option value="${n}" ${(+row.div||1)===n?"selected":""}>${String.fromCharCode(247)}${n}</option>`).join("");
     const isFirst = i === 0;
+    // Show remove (×) button for all rows except the first default row when it's the only row
+    const canRemove = !(isFirst && rows.length === 1);
     return `
     <div class="vlist-row" style="display:grid;grid-template-columns:1fr 90px 28px;gap:6px;align-items:end;${isFirst ? '' : 'margin-top:6px'}">
       <label style="margin:0;gap:3px">
-        ${isFirst ? `<span style="font-size:10px;font-weight:700;letter-spacing:.6px;color:var(--text-dim)">${label} <span style="font-weight:400;color:var(--text-dim)">(₱${rate}/ea)</span></span>` : `<span style="font-size:10px;color:var(--text-dim);font-style:italic">+ more</span>`}
+        ${isFirst
+          ? `<span style="font-size:10px;font-weight:700;letter-spacing:.6px;color:var(--text-dim);display:flex;align-items:center;gap:4px">
+               ${label} <span style="font-weight:400;color:var(--text-dim)">(₱${rate}/ea)</span>
+               <button type="button" class="icon-btn" style="margin-left:auto;width:18px;height:18px;padding:0;flex-shrink:0;color:var(--accent);border:1px solid var(--accent);border-radius:50%;background:none;line-height:1;font-size:13px;font-weight:700;cursor:pointer" title="Add another ${label}" ${dis} onclick="addVehicleRow('${pid}','${eid}','${type}')">+</button>
+             </span>`
+          : `<span style="font-size:10px;color:var(--text-dim);font-style:italic">+ more</span>`}
         <input type="number" min="0" value="${row.qty || 0}" ${dis} onchange="updateVehicleRow('${pid}','${eid}','${type}',${i},'qty',this.value)">
       </label>
       <div style="display:flex;flex-direction:column;gap:3px">
         ${isFirst ? `<span style="font-size:10px;font-weight:700;letter-spacing:.6px;color:var(--text-dim)">Workers</span>` : `<span style="font-size:10px;opacity:0">w</span>`}
         <select style="font-size:12px" title="Divide by" ${dis} onchange="updateVehicleRow('${pid}','${eid}','${type}',${i},'div',this.value)">${divOpts}</select>
       </div>
-      <button type="button" class="icon-btn" style="width:26px;height:34px;padding:0;color:var(--danger);border:none;background:none;align-self:end;margin-bottom:1px" title="Remove row" ${dis} onclick="removeVehicleRow('${pid}','${eid}','${type}',${i})"><i data-lucide="x"></i></button>
+      ${canRemove
+        ? `<button type="button" class="icon-btn" style="width:26px;height:34px;padding:0;color:var(--danger);border:none;background:none;align-self:end;margin-bottom:1px" title="Remove row" ${dis} onclick="removeVehicleRow('${pid}','${eid}','${type}',${i})"><i data-lucide="x"></i></button>`
+        : `<span style="width:26px"></span>`}
     </div>`;
-  }).join("") + `
-  <button type="button" class="btn" style="width:100%;margin-top:${rows.length?'8':'0'}px;font-size:11px;padding:4px 8px" ${dis} onclick="addVehicleRow('${pid}','${eid}','${type}')"><i data-lucide="plus"></i> Add ${label}</button>`;
+  }).join("");
   lucide.createIcons();
 }
 
@@ -775,12 +784,27 @@ function renderUnitsListUI(pid, eid) {
 
   // Each unit row becomes its own comm-field-wrap card, plus a final add-button card
   // We render the wrapper itself as the grid cell spanning container
-  wrap.innerHTML = list.map((u, i) => `
+  const defaultList = list.length > 0 ? list : [];
+  // If no units yet, show one default empty row
+  const displayList = defaultList.length > 0 ? defaultList : [{ desc: "", qty: 0, div: 1 }];
+  // Sync in-memory entry if we added a default placeholder
+  if (list.length === 0 && displayList.length === 1) {
+    const p2 = state.periods.find(x => x.id === pid);
+    const e2 = p2 && p2.entries.find(x => x.id === eid);
+    if (e2) { e2.units_list = displayList; }
+  }
+
+  wrap.innerHTML = displayList.map((u, i) => {
+    const canRemove = !(i === 0 && displayList.length === 1);
+    return `
     <div class="comm-field-wrap comm-field-wrap--unit-row">
       <label>
         <span style="display:flex;align-items:center;justify-content:space-between;gap:4px">
           <span>Units Qty <span style="font-weight:400;font-size:10px;color:var(--text-dim)">(₱${(r.units_rate || 0).toLocaleString()}/ea)</span></span>
-          <button type="button" class="icon-btn" style="width:18px;height:18px;padding:0;flex-shrink:0;color:var(--danger);border:none;background:none" title="Remove" ${disAttr} onclick="removeUnitsRow('${pid}','${eid}',${i})"><i data-lucide="x"></i></button>
+          <span style="display:flex;gap:4px;align-items:center">
+            ${i === 0 ? `<button type="button" class="icon-btn" style="width:18px;height:18px;padding:0;flex-shrink:0;color:var(--accent);border:1px solid var(--accent);border-radius:50%;background:none;line-height:1;font-size:13px;font-weight:700;cursor:pointer" title="Add another Unit" ${disAttr} onclick="addUnitsRow('${pid}','${eid}')">+</button>` : ""}
+            ${canRemove ? `<button type="button" class="icon-btn" style="width:18px;height:18px;padding:0;flex-shrink:0;color:var(--danger);border:none;background:none" title="Remove" ${disAttr} onclick="removeUnitsRow('${pid}','${eid}',${i})"><i data-lucide="x"></i></button>` : ""}
+          </span>
         </span>
         <input type="number" min="0" value="${u.qty || 0}" style="width:100%;text-align:center;padding:6px 8px;font-size:13px;margin-top:4px" ${disAttr} onchange="updateUnitsRow('${pid}','${eid}',${i},'qty',this.value)">
       </label>
@@ -789,12 +813,7 @@ function renderUnitsListUI(pid, eid) {
           ${Array.from({length:10},(_,k)=>k+1).map(n=>`<option value="${n}" ${(+u.div||1)===n?"selected":""}>${String.fromCharCode(247)}${n}</option>`).join("")}
         </select>
       </div>
-    </div>`).join("") + `
-  <div class="comm-field-wrap comm-field-wrap--add-unit">
-    <span class="div-label" style="visibility:hidden">Add</span>
-    <button type="button" class="btn" style="width:100%" ${disAttr} onclick="addUnitsRow('${pid}','${eid}')"><i data-lucide="plus"></i> Add Unit</button>
-    <div class="div-row" style="visibility:hidden"><span class="div-label">Workers</span></div>
-  </div>`;
+    </div>`}).join("");
   lucide.createIcons();
 }
 function updateEntryTotals(pid, eid) {
@@ -882,6 +901,10 @@ function renderEntries(pid) {
               <option value="offsite" ${holidayType === "offsite" ? "selected" : ""}>Holiday Offsite (+₱1,000, no work)</option>
               <option value="special" ${holidayType === "special" ? "selected" : ""}>Special Holiday (+30% of daily rate)</option>
             </select>
+            <div id="holiday-notes-wrap-${e.id}" style="display:${holidayType !== 'none' ? 'flex' : 'none'};flex-direction:column;gap:3px;margin-top:4px">
+              <span style="font-size:10px;font-weight:600;color:var(--text-dim)">Holiday Notes <span style="font-weight:400;font-style:italic">(optional)</span></span>
+              <input type="text" placeholder="e.g. New Year Holiday" value="${(e.holiday_notes || '').replace(/"/g,'&quot;')}" onchange="updateEntry('${pid}','${e.id}','holiday_notes',this.value)" style="font-size:12px;padding:5px 8px">
+            </div>
           </label>
           <label class="toggle-check tone-blue ${e.is_offset ? "is-checked" : ""}">
             <input type="checkbox" ${e.is_offset ? "checked" : ""} onchange="updateEntry('${pid}','${e.id}','is_offset',this.checked);this.closest('.toggle-check').classList.toggle('is-checked',this.checked)">
@@ -947,6 +970,9 @@ async function onHolidayTypeChange(pid, eid, type) {
   e.holiday_type = type;
   e.is_holiday = (type === "onsite" || type === "offsite" || type === "special");
   await sb.from('entries').update({ holiday_type: type, is_holiday: e.is_holiday }).eq('id', eid);
+  // Toggle the holiday notes field visibility in-place without full re-render
+  const notesWrap = document.getElementById(`holiday-notes-wrap-${eid}`);
+  if (notesWrap) notesWrap.style.display = type !== "none" ? "flex" : "none";
   editPeriod(pid); // full re-render so offsite greying applies
 }
 
@@ -1371,8 +1397,8 @@ function exportCSV(pid) {
   aoa.push([xText("")]);
 
   const dailyR = aoa.length;
-  aoa.push([xSection("DAILY BREAKDOWN")]); pushMerge(merges, dailyR, 0, dailyR, 21);
-  const headers = ["Date", "Location", "Time In", "Time Out", "Type", "Base Pay", "OT Hrs", "OT Min", "Total OT", "Brand", "Sedan", "MPV", "Sunroof", "Scrap", "Tubes", "Div", "Commission", "OT Pay", "Holiday", "Gas", "Day Total", "Notes"];
+  aoa.push([xSection("DAILY BREAKDOWN")]); pushMerge(merges, dailyR, 0, dailyR, 22);
+  const headers = ["Date", "Location", "Time In", "Time Out", "Type", "Base Pay", "OT Hrs", "OT Min", "Total OT", "Brand", "Sedan", "MPV", "Sunroof", "Scrap", "Tubes", "Div", "Commission", "OT Pay", "Holiday", "Holiday Notes", "Gas", "Day Total", "Notes"];
   aoa.push(headers.map(h => xHead(h)));
   p.entries.forEach(e => {
     const c = calcEntry(e, emp.base_rate);
@@ -1384,7 +1410,7 @@ function exportCSV(pid) {
       xText(e.date), xText(e.location), xText(to12h(e.time_in) || "—"), xText(to12h(e.time_out) || "—"), xText(type),
       xNum(c.base), xText(String(otH)), xText(String(otM)), xText(totalOTLabel), xText((e.brand || "").toUpperCase()),
       xText(String(e.sedan_qty || 0)), xText(String(e.mpv_qty || 0)), xText(String(e.sunroof_qty || 0)), xText(String(e.scrapping_qty || 0)), xText(String(e.tubes_qty || 0)), xText(String(e.divide_by || 1)),
-      xNum(c.commission), xNum(c.otPay), xNum(c.holiday), xNum(c.gas), xNum(c.total), xText(e.notes || "")
+      xNum(c.commission), xNum(c.otPay), xNum(c.holiday), xText(e.holiday_notes || ""), xNum(c.gas), xNum(c.total), xText(e.notes || "")
     ]);
   });
 
@@ -1397,12 +1423,12 @@ function exportCSV(pid) {
     xTotal("TOTALS"), xTotal(""), xTotal(""), xTotal(""), xTotal(""),
     xTotal(""), xTotalNum(normOTH), xTotalNum(normOTM), xTotal(formatOT(normOTH, normOTM)), xTotal(""),
     xTotal(""), xTotal(""), xTotal(""), xTotal(""), xTotal(""), xTotal(""),
-    xTotalNum(t.commission), xTotalNum(t.ot), xTotalNum(t.holiday), xTotalNum(t.gas), xTotalNum(t.earnings), xTotal("")
+    xTotalNum(t.commission), xTotalNum(t.ot), xTotalNum(t.holiday), xTotal(""), xTotalNum(t.gas), xTotalNum(t.earnings), xTotal("")
   ]);
 
   const ws = XLSX.utils.aoa_to_sheet(aoa.map(row => row.map(cell => cell || xText(""))));
   ws['!merges'] = merges;
-  ws['!cols'] = [{ wch: 12 }, { wch: 14 }, { wch: 10 }, { wch: 10 }, { wch: 9 }, { wch: 11 }, { wch: 7 }, { wch: 7 }, { wch: 9 }, { wch: 8 }, { wch: 7 }, { wch: 7 }, { wch: 8 }, { wch: 7 }, { wch: 7 }, { wch: 6 }, { wch: 13 }, { wch: 11 }, { wch: 11 }, { wch: 10 }, { wch: 13 }, { wch: 22 }];
+  ws['!cols'] = [{ wch: 12 }, { wch: 14 }, { wch: 10 }, { wch: 10 }, { wch: 9 }, { wch: 11 }, { wch: 7 }, { wch: 7 }, { wch: 9 }, { wch: 8 }, { wch: 7 }, { wch: 7 }, { wch: 8 }, { wch: 7 }, { wch: 7 }, { wch: 6 }, { wch: 13 }, { wch: 11 }, { wch: 11 }, { wch: 18 }, { wch: 10 }, { wch: 13 }, { wch: 22 }];
   ws['!rows'] = ws['!rows'] || [];
   ws['!rows'][0] = { hpt: 28 };
 
@@ -1605,7 +1631,7 @@ function exportPDF(pid) {
   // Columns must sum to ≤ 761. Total below = 761.
   doc.autoTable({
     startY: y, margin: { left: margin, right: margin }, theme: "grid",
-    head: [["Date", "Location", "In", "Out", "Type", "Brand", "Sed", "MPV", "Sun", "Scr", "Tub", "OT Hrs", "OT Min", "Commission", "OT Pay", "Holiday", "Gas", "Total"]],
+    head: [["Date", "Location", "In", "Out", "Type", "Brand", "Sed", "MPV", "Sun", "Scr", "Tub", "OT Hrs", "OT Min", "Commission", "OT Pay", "Holiday", "Hol Notes", "Gas", "Total"]],
     body: p.entries.map(e => {
       const c = calcEntry(e, emp.base_rate);
       const holidayType = e.holiday_type || (e.is_holiday ? "onsite" : "none");
@@ -1628,30 +1654,31 @@ function exportPDF(pid) {
       vSummary(vl.sedan), vSummary(vl.mpv), vSummary(vl.sunroof),
       vSummary(vl.scrap), vSummary(vl.tubes),
       otH || "—", otM || "—",
-      fmt(c.commission), fmt(c.otPay), fmt(c.holiday), fmt(c.gas), fmt(c.total)];
+      fmt(c.commission), fmt(c.otPay), fmt(c.holiday), e.holiday_notes || "—", fmt(c.gas), fmt(c.total)];
     }),
     headStyles: { fillColor: [30, 30, 30], textColor: 255, fontSize: 7.5, fontStyle: "bold", halign: "center" },
     styles: { font: "helvetica", fontSize: 7.5, cellPadding: 3.5, lineColor: [180, 180, 180], lineWidth: 0.3, textColor: 20, overflow: "linebreak" },
     alternateRowStyles: { fillColor: [248, 248, 248] },
     columnStyles: {
-      0: { cellWidth: 52 },  // Date
-      1: { cellWidth: 52 },  // Location
-      2: { cellWidth: 40 },  // In
-      3: { cellWidth: 40 },  // Out
-      4: { cellWidth: 42 },  // Type
-      5: { cellWidth: 36 },  // Brand
-      6: { cellWidth: 30, halign: "center" },  // Sed
-      7: { cellWidth: 30, halign: "center" },  // MPV
-      8: { cellWidth: 30, halign: "center" },  // Sun
-      9: { cellWidth: 30, halign: "center" },  // Scr
-      10: { cellWidth: 30, halign: "center" }, // Tub
-      11: { cellWidth: 30, halign: "center" }, // OT Hrs
-      12: { cellWidth: 30, halign: "center" }, // OT Min
-      13: { cellWidth: 62, halign: "right" },  // Commission
-      14: { cellWidth: 50, halign: "right" },  // OT Pay
-      15: { cellWidth: 47, halign: "right" },  // Holiday
-      16: { cellWidth: 40, halign: "right" },  // Gas
-      17: { cellWidth: 56, halign: "right", fontStyle: "bold" } // Total
+      0: { cellWidth: 50 },  // Date
+      1: { cellWidth: 50 },  // Location
+      2: { cellWidth: 38 },  // In
+      3: { cellWidth: 38 },  // Out
+      4: { cellWidth: 40 },  // Type
+      5: { cellWidth: 34 },  // Brand
+      6: { cellWidth: 28, halign: "center" },  // Sed
+      7: { cellWidth: 28, halign: "center" },  // MPV
+      8: { cellWidth: 28, halign: "center" },  // Sun
+      9: { cellWidth: 28, halign: "center" },  // Scr
+      10: { cellWidth: 28, halign: "center" }, // Tub
+      11: { cellWidth: 28, halign: "center" }, // OT Hrs
+      12: { cellWidth: 28, halign: "center" }, // OT Min
+      13: { cellWidth: 58, halign: "right" },  // Commission
+      14: { cellWidth: 46, halign: "right" },  // OT Pay
+      15: { cellWidth: 44, halign: "right" },  // Holiday
+      16: { cellWidth: 54 },                   // Hol Notes
+      17: { cellWidth: 38, halign: "right" },  // Gas
+      18: { cellWidth: 52, halign: "right", fontStyle: "bold" } // Total
     },
     didDrawPage: () => {
       doc.setFontSize(8); doc.setTextColor(110); doc.setFont("helvetica", "normal");
