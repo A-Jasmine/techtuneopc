@@ -57,6 +57,7 @@ let BYD = COMMISSION_RATES.byd;
 let GEELY = COMMISSION_RATES.geely;
 const TUBE_RATE = 50, HOLIDAY_AMT = 1000, OFFSET_AMT = 1000;
 const SPECIAL_HOLIDAY_PCT = 0.30; // 30% of base rate
+// Regular holiday: employee works, gets base pay + 100% of base rate as bonus (total = 2× base)
 const BASE_RATE_OPTIONS = [1000, 1100, 1200];
 const LOCATIONS = [
   "Fairview", "Commonwealth", "Batangas City", "Subic", "BGC",
@@ -74,7 +75,7 @@ function calcEntryBase(e, baseRate) {
   // holiday_type "offsite" = employee didn't come in; only holiday bonus applies, no base pay
   const holidayType = e.holiday_type || (e.is_holiday ? "onsite" : "none");
   if (holidayType === "offsite") return 0;
-  // special_holiday: employee came in, gets base pay + 30% bonus
+  // regular/special/onsite: employee came in, gets full base pay (bonus calculated separately)
   const br = baseRate || 1000;
   return e.is_halfday ? round2(br / 2) : br;
 }
@@ -167,13 +168,17 @@ function calcEntry(e, baseRate) {
   );
   const otHrs = (+e.ot_hours || 0) + (+e.ot_minutes || 0) / 60;
   const otPay = round2(otHrs * (+e.ot_rate || otRateFromBase(baseRate)));
-  // holiday_type: "onsite" = full pay + bonus, "offsite" = bonus only, "special" = +30% of base rate
+  // holiday_type: "onsite" = full pay + ₱1000 bonus, "offsite" = ₱1000 bonus only,
+  // "special" = +30% of base rate, "regular" = +100% of base rate (paid double)
   const holidayType = e.holiday_type || (e.is_holiday ? "onsite" : "none");
   let holiday = 0;
   if (holidayType === "onsite" || holidayType === "offsite") {
     holiday = HOLIDAY_AMT;
   } else if (holidayType === "special") {
     holiday = round2((baseRate || 1000) * SPECIAL_HOLIDAY_PCT);
+  } else if (holidayType === "regular") {
+    // Regular holiday: 100% of the daily base rate (so total = 2× base)
+    holiday = round2(e.is_halfday ? (baseRate || 1000) / 2 : (baseRate || 1000));
   }
   const base = calcEntryBase(e, baseRate);
   const gas = +e.gas_allowance || 0;
@@ -974,7 +979,8 @@ function renderEntries(pid) {
       : holidayType === "offsite" ? `Holiday Offsite · ₱0 base (holiday bonus only)`
         : holidayType === "onsite" ? (e.is_halfday ? `Holiday Onsite · Half day · ₱${(baseRate / 2).toLocaleString()}` : `Holiday Onsite · ₱${baseRate.toLocaleString()}`)
           : holidayType === "special" ? (e.is_halfday ? `Special Holiday · Half day · ₱${(baseRate / 2).toLocaleString()} + ${Math.round(baseRate * 0.3)}` : `Special Holiday · ₱${baseRate.toLocaleString()} + ₱${Math.round(baseRate * 0.3)} bonus`)
-            : e.is_halfday ? `Half day · ₱${(baseRate / 2).toLocaleString()}` : `Full day · ₱${baseRate.toLocaleString()}`;
+            : holidayType === "regular" ? (e.is_halfday ? `Regular Holiday · Half day · ₱${(baseRate / 2).toLocaleString()} + ₱${(baseRate / 2).toLocaleString()} bonus` : `Regular Holiday · ₱${baseRate.toLocaleString()} + ₱${baseRate.toLocaleString()} bonus (2× pay)`)
+              : e.is_halfday ? `Half day · ₱${(baseRate / 2).toLocaleString()}` : `Full day · ₱${baseRate.toLocaleString()}`;
 
     // Per-field divide helpers (÷1 – ÷10)
     const divSel = (field, val) => {
@@ -1019,8 +1025,9 @@ function renderEntries(pid) {
             <span style="font-size:10px;font-weight:700;letter-spacing:.8px;text-transform:uppercase;color:var(--text-dim)">Holiday Pay</span>
             <select onchange="onHolidayTypeChange('${pid}','${e.id}',this.value)"
               class="holiday-type-sel htype-${holidayType}"
-              style="${holidayType === 'offsite' ? 'border-color:var(--purple);background:var(--purple-bg);color:var(--purple)' : holidayType === 'onsite' ? 'border-color:var(--green);background:var(--green-bg);color:var(--green)' : holidayType === 'special' ? 'border-color:var(--amber);background:var(--amber-bg);color:var(--amber)' : ''}">
+              style="${holidayType === 'offsite' ? 'border-color:var(--purple);background:var(--purple-bg);color:var(--purple)' : holidayType === 'onsite' ? 'border-color:var(--green);background:var(--green-bg);color:var(--green)' : holidayType === 'special' ? 'border-color:var(--amber);background:var(--amber-bg);color:var(--amber)' : holidayType === 'regular' ? 'border-color:#dc2626;background:#fef2f2;color:#dc2626' : ''}">
               <option value="none"    ${holidayType === "none" ? "selected" : ""}>None</option>
+              <option value="regular" ${holidayType === "regular" ? "selected" : ""}>Regular Holiday (2× daily rate)</option>
               <option value="onsite"  ${holidayType === "onsite" ? "selected" : ""}>Holiday Onsite (+₱1,000)</option>
               <option value="offsite" ${holidayType === "offsite" ? "selected" : ""}>Holiday Offsite (+₱1,000, no work)</option>
               <option value="special" ${holidayType === "special" ? "selected" : ""}>Special Holiday (+30% of daily rate)</option>
@@ -1036,9 +1043,18 @@ function renderEntries(pid) {
                 <div class="holiday-detail-field holiday-pay-chip">
                   <span class="holiday-detail-label">Holiday Bonus</span>
                   <span class="holiday-pay-badge hbadge-${holidayType}">
-                    ${holidayType === 'onsite' ? '+₱1,000 (Onsite)' : holidayType === 'offsite' ? '+₱1,000 (Offsite)' : '+' + Math.round((emp ? emp.base_rate : 1000) * 0.3).toLocaleString() + ' (30% rate)'}
+                    ${holidayType === 'regular' ? `+₱${((emp ? emp.base_rate : 1000) * (e.is_halfday ? 0.5 : 1)).toLocaleString()} (100% base rate)` : holidayType === 'onsite' ? '+₱1,000 (Onsite)' : holidayType === 'offsite' ? '+₱1,000 (Offsite)' : '+' + Math.round((emp ? emp.base_rate : 1000) * 0.3).toLocaleString() + ' (30% rate)'}
                   </span>
                 </div>
+                ${holidayType === 'regular' ? `
+                <div class="holiday-detail-field" style="grid-column:1/-1">
+                  <div class="regular-holiday-breakdown">
+                    <div class="rhb-row"><span class="rhb-label">Base Rate</span><span class="rhb-value">₱${((emp ? emp.base_rate : 1000) * (e.is_halfday ? 0.5 : 1)).toLocaleString()}</span></div>
+                    <div class="rhb-row"><span class="rhb-label">Holiday Pay (+100%)</span><span class="rhb-value rhb-green">+₱${((emp ? emp.base_rate : 1000) * (e.is_halfday ? 0.5 : 1)).toLocaleString()}</span></div>
+                    <div class="rhb-divider"></div>
+                    <div class="rhb-row rhb-total"><span class="rhb-label">Total for the day</span><span class="rhb-value">₱${((emp ? emp.base_rate : 1000) * (e.is_halfday ? 1 : 2)).toLocaleString()}</span></div>
+                  </div>
+                </div>` : ''}
               </div>
             </div>` : ''}
             <div id="holiday-notes-wrap-${e.id}" style="display:none"></div>
@@ -1860,7 +1876,7 @@ function exportPDF(pid) {
     body: p.entries.map(e => {
       const c = calcEntry(e, emp.base_rate);
       const holidayType = e.holiday_type || (e.is_holiday ? "onsite" : "none");
-      const type = e.is_offset ? "OFFSET" : holidayType === "offsite" ? "HOL OFF" : holidayType === "onsite" ? "HOL ON" : holidayType === "special" ? "HOL SP" : e.is_halfday ? "HALF" : "FULL";
+      const type = e.is_offset ? "OFFSET" : holidayType === "offsite" ? "HOL OFF" : holidayType === "onsite" ? "HOL ON" : holidayType === "special" ? "HOL SP" : holidayType === "regular" ? "HOL REG" : e.is_halfday ? "HALF" : "FULL";
       const otH = +e.ot_hours || 0;
       const otM = +e.ot_minutes || 0;
       // Show vehicle list summary: total qty across rows, with div notation if any row divides
