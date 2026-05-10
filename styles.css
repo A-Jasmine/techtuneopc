@@ -1240,12 +1240,12 @@ textarea:focus {
 #toast {
   position: fixed;
   right: 20px;
-  bottom: 24px;
-  z-index: 1000;
+  top: 80px;
+  z-index: 1001;
   padding: 12px 18px;
   border-radius: var(--radius);
-  background: var(--black);
-  color: #fff;
+  background: #111111;
+  color: #ffffff;
   font-weight: 600;
   font-size: 13px;
   box-shadow: var(--shadow-lg);
@@ -1253,10 +1253,15 @@ textarea:focus {
   animation: toastIn .2s ease;
 }
 
+[data-theme="dark"] #toast {
+  background: #e0e0e0;
+  color: #111111;
+}
+
 @keyframes toastIn {
   from {
     opacity: 0;
-    transform: translateY(6px);
+    transform: translateY(-8px);
   }
 
   to {
