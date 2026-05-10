@@ -2091,8 +2091,27 @@ textarea:focus {
   flex-direction: column;
   gap: 4px;
 }
-.comm-field-wrap label {
+/* Inline label: text on left, number input on right */
+.comm-field-wrap > label {
   margin: 0;
+  display: flex !important;
+  flex-direction: row !important;
+  align-items: center !important;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .6px;
+  color: var(--text-dim);
+  white-space: nowrap;
+}
+.comm-field-wrap > label input[type="number"] {
+  width: 64px !important;
+  flex-shrink: 0;
+  text-align: center;
+  padding: 6px 8px;
+  font-size: 13px;
 }
 .div-row {
   display: flex;
