@@ -714,34 +714,41 @@ function renderVehicleListUI(pid, eid, type) {
   const isOffsite = (e.holiday_type || (e.is_holiday ? "onsite" : "none")) === "offsite";
   const dis = isOffsite ? "disabled" : "";
 
-  wrap.innerHTML = rows.map((row, i) => {
+  // Header row
+  const header = `
+    <div class="cf-header">
+      <span class="cf-label">${label}</span>
+      <span class="cf-rate">₱${rate}/ea</span>
+      <button type="button" class="cf-add-btn" title="Add another ${label}" ${dis} onclick="addVehicleRow('${pid}','${eid}','${type}')">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+        Add
+      </button>
+    </div>`;
+
+  const rowsHTML = rows.map((row, i) => {
     const divOpts = Array.from({length:10},(_,k)=>k+1).map(n=>`<option value="${n}" ${(+row.div||1)===n?"selected":""}>${String.fromCharCode(247)}${n}</option>`).join("");
-    const isFirst = i === 0;
-    const canRemove = !(isFirst && rows.length === 1);
+    const canRemove = !(i === 0 && rows.length === 1);
     return `
-    <div class="vlist-row" style="display:grid;grid-template-columns:1fr auto 28px;gap:8px;align-items:center;">
-      <label style="margin:0;gap:4px;display:flex;flex-direction:column;">
-        ${isFirst
-          ? `<span style="font-size:10px;font-weight:700;letter-spacing:.6px;color:var(--text-dim);display:flex;align-items:center;gap:6px;">
-               <span>${label} <span style="font-weight:400">(₱${rate}/ea)</span></span>
-               <button type="button" style="margin-left:auto;width:20px;height:20px;padding:0;flex-shrink:0;color:var(--blue);border:1.5px solid var(--blue);border-radius:50%;background:var(--blue-bg);line-height:1;font-size:14px;font-weight:700;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;" title="Add another ${label}" ${dis} onclick="addVehicleRow('${pid}','${eid}','${type}')">+</button>
-             </span>`
-          : `<span style="font-size:10px;color:var(--text-dim);font-style:italic;">+ more</span>`}
-        <input type="number" min="0" value="${row.qty || 0}" ${dis} style="text-align:center;font-size:15px;font-weight:600;font-family:var(--mono);padding:7px 10px;" onchange="updateVehicleRow('${pid}','${eid}','${type}',${i},'qty',this.value)">
-      </label>
-      <div style="display:flex;flex-direction:column;gap:4px;min-width:80px;">
-        <span style="font-size:10px;font-weight:700;letter-spacing:.6px;color:var(--text-dim);">Workers</span>
-        <select style="font-size:12px;padding:6px 8px;" title="Divide by" ${dis} onchange="updateVehicleRow('${pid}','${eid}','${type}',${i},'div',this.value)">${divOpts}</select>
+    <div class="cf-row">
+      <input class="cf-qty-input" type="number" min="0" value="${row.qty || 0}" placeholder="0" ${dis}
+        onchange="updateVehicleRow('${pid}','${eid}','${type}',${i},'qty',this.value)">
+      <div class="cf-divider-wrap">
+        <span class="cf-divider-label">÷ workers</span>
+        <select class="cf-divider-select" title="Divide by workers" ${dis}
+          onchange="updateVehicleRow('${pid}','${eid}','${type}',${i},'div',this.value)">${divOpts}</select>
       </div>
       ${canRemove
-        ? `<button type="button" style="width:26px;height:26px;padding:0;color:var(--danger);border:none;background:none;cursor:pointer;display:grid;place-items:center;border-radius:6px;flex-shrink:0;" title="Remove row" ${dis} onclick="removeVehicleRow('${pid}','${eid}','${type}',${i})"><i data-lucide="x"></i></button>`
-        : `<span style="width:26px;"></span>`}
+        ? `<button type="button" class="cf-remove-btn" title="Remove" ${dis}
+             onclick="removeVehicleRow('${pid}','${eid}','${type}',${i})">
+             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+           </button>`
+        : `<span class="cf-remove-placeholder"></span>`}
     </div>`;
   }).join("");
+
+  wrap.innerHTML = header + rowsHTML;
   lucide.createIcons();
 }
-
-// Units list helpers
 function addUnitsRow(pid, eid) {
   const p = state.periods.find(x => x.id === pid);
   const e = p.entries.find(x => x.id === eid);
@@ -793,26 +800,36 @@ function renderUnitsListUI(pid, eid) {
     if (e2) { e2.units_list = displayList; }
   }
 
-  wrap.innerHTML = displayList.map((u, i) => {
-    const canRemove = !(i === 0 && displayList.length === 1);
-    return `
-    <div class="comm-field-wrap comm-field-wrap--unit-row">
-      <label>
-        <span style="display:flex;align-items:center;justify-content:space-between;gap:4px">
-          <span>Units Qty <span style="font-weight:400;font-size:10px;color:var(--text-dim)">(₱${(r.units_rate || 0).toLocaleString()}/ea)</span></span>
-          <span style="display:flex;gap:4px;align-items:center">
-            ${i === 0 ? `<button type="button" class="icon-btn" style="width:18px;height:18px;padding:0;flex-shrink:0;color:var(--accent);border:1px solid var(--accent);border-radius:50%;background:none;line-height:1;font-size:13px;font-weight:700;cursor:pointer" title="Add another Unit" ${disAttr} onclick="addUnitsRow('${pid}','${eid}')">+</button>` : ""}
-            ${canRemove ? `<button type="button" class="icon-btn" style="width:18px;height:18px;padding:0;flex-shrink:0;color:var(--danger);border:none;background:none" title="Remove" ${disAttr} onclick="removeUnitsRow('${pid}','${eid}',${i})"><i data-lucide="x"></i></button>` : ""}
-          </span>
-        </span>
-        <input type="number" min="0" value="${u.qty || 0}" style="width:100%;text-align:center;padding:6px 8px;font-size:13px;margin-top:4px" ${disAttr} onchange="updateUnitsRow('${pid}','${eid}',${i},'qty',this.value)">
-      </label>
-      <div class="div-row"><span class="div-label">Workers</span>
-        <select style="flex:1;font-size:12px" title="Divide by (# of workers)" ${disAttr} onchange="updateUnitsRow('${pid}','${eid}',${i},'div',this.value)">
-          ${Array.from({length:10},(_,k)=>k+1).map(n=>`<option value="${n}" ${(+u.div||1)===n?"selected":""}>${String.fromCharCode(247)}${n}</option>`).join("")}
-        </select>
-      </div>
-    </div>`}).join("");
+  wrap.innerHTML = `
+    <div class="cf-header">
+      <span class="cf-label">Units Qty</span>
+      <span class="cf-rate">₱${(r.units_rate || 0).toLocaleString()}/ea</span>
+      <button type="button" class="cf-add-btn" title="Add another Unit" ${disAttr} onclick="addUnitsRow('${pid}','${eid}')">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+        Add
+      </button>
+    </div>
+    ${displayList.map((u, i) => {
+      const canRemove = !(i === 0 && displayList.length === 1);
+      return `
+      <div class="cf-row">
+        <input class="cf-qty-input" type="number" min="0" value="${u.qty || 0}" placeholder="0" ${disAttr}
+          onchange="updateUnitsRow('${pid}','${eid}',${i},'qty',this.value)">
+        <div class="cf-divider-wrap">
+          <span class="cf-divider-label">÷ workers</span>
+          <select class="cf-divider-select" title="Divide by workers" ${disAttr}
+            onchange="updateUnitsRow('${pid}','${eid}',${i},'div',this.value)">
+            ${Array.from({length:10},(_,k)=>k+1).map(n=>`<option value="${n}" ${(+u.div||1)===n?"selected":""}>${String.fromCharCode(247)}${n}</option>`).join("")}
+          </select>
+        </div>
+        ${canRemove
+          ? `<button type="button" class="cf-remove-btn" title="Remove" ${disAttr}
+               onclick="removeUnitsRow('${pid}','${eid}',${i})">
+               <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+             </button>`
+          : `<span class="cf-remove-placeholder"></span>`}
+      </div>`;
+    }).join("")}`;
   lucide.createIcons();
 }
 function updateEntryTotals(pid, eid) {
@@ -922,8 +939,8 @@ function renderEntries(pid) {
       </div>
       <div class="entry-section" style="${isOffsite ? offOpacity : ''}">
         <h4>Commission</h4>
-        <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;flex-wrap:wrap">
-          <label style="margin:0;flex-direction:row;align-items:center;gap:8px;font-size:10px;font-weight:700;letter-spacing:.8px;text-transform:uppercase;color:var(--text-dim)">Brand
+        <div class="cf-brand-bar">
+          <label class="cf-brand-label">Brand
             <select onchange="updateEntry('${pid}','${e.id}','brand',this.value);renderEntries('${pid}')" ${isOffsite ? "disabled" : ""}>
               ${brandOptions}
             </select>
@@ -931,14 +948,12 @@ function renderEntries(pid) {
           ${brandHint}
         </div>
         <div class="commission-grid">
-          <div class="comm-field-wrap" id="vlist-${e.id}-sedan"><!-- rendered by renderVehicleListUI --></div>
-          <div class="comm-field-wrap" id="vlist-${e.id}-mpv"><!-- rendered by renderVehicleListUI --></div>
-          <div class="comm-field-wrap" id="vlist-${e.id}-sunroof"><!-- rendered by renderVehicleListUI --></div>
-          <div class="comm-field-wrap" id="vlist-${e.id}-scrap"><!-- rendered by renderVehicleListUI --></div>
-          <div class="comm-field-wrap" id="vlist-${e.id}-tubes"><!-- rendered by renderVehicleListUI --></div>
-          <div class="comm-field-wrap comm-field-wrap--units" id="units-list-${e.id}">
-            <!-- rendered by renderUnitsListUI -->
-          </div>
+          <div class="cf-card" id="vlist-${e.id}-sedan"></div>
+          <div class="cf-card" id="vlist-${e.id}-mpv"></div>
+          <div class="cf-card" id="vlist-${e.id}-sunroof"></div>
+          <div class="cf-card" id="vlist-${e.id}-scrap"></div>
+          <div class="cf-card" id="vlist-${e.id}-tubes"></div>
+          <div class="cf-card" id="units-list-${e.id}"></div>
         </div>
       </div>
       <div class="entry-section">

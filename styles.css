@@ -958,8 +958,8 @@ textarea:focus {
   background: var(--surface-2);
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
-  padding: 22px 22px 18px 26px;
-  margin-bottom: 16px;
+  padding: 18px;
+  margin-bottom: 12px;
   transition: .18s ease;
 }
 
@@ -970,8 +970,8 @@ textarea:focus {
 
 .entry-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
-  gap: 12px;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 10px;
 }
 
 .entry-grid label {
@@ -986,13 +986,13 @@ textarea:focus {
 }
 
 .entry-section {
-  margin-top: 20px;
-  padding-top: 18px;
+  margin-top: 16px;
+  padding-top: 16px;
   border-top: 1px dashed var(--border);
 }
 
 .entry-section h4 {
-  margin-bottom: 14px;
+  margin-bottom: 10px;
   font-size: 9px;
   font-weight: 700;
   letter-spacing: 1.5px;
@@ -1001,8 +1001,8 @@ textarea:focus {
 }
 
 .entry-foot {
-  margin-top: 18px;
-  padding-top: 16px;
+  margin-top: 16px;
+  padding-top: 14px;
   border-top: 1px solid var(--border);
   display: flex;
   align-items: center;
@@ -1038,7 +1038,7 @@ textarea:focus {
   flex-direction: row !important;
   align-items: center;
   gap: 10px;
-  padding: 12px 16px;
+  padding: 10px 14px;
   border-radius: var(--radius-sm);
   background: var(--surface);
   border: 1px solid var(--border);
@@ -1050,9 +1050,7 @@ textarea:focus {
   letter-spacing: 0 !important;
   transition: .15s ease;
   user-select: none;
-  margin-top: 0;
-  height: 100%;
-  min-height: 46px;
+  margin-top: 18px;
 }
 
 .toggle-check:hover {
@@ -2057,103 +2055,222 @@ textarea:focus {
 .history-table tr:last-child td { border-bottom: none; }
 .history-table tr:hover td { background: var(--surface-2); }
 
-/* ── Commission per-field divide grid ── */
+/* ══════════════════════════════════════════
+   COMMISSION FIELD CARDS — clean redesign
+   ══════════════════════════════════════════ */
+
+/* Outer grid — 6 equal columns that wrap on small screens */
 .commission-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
   gap: 12px;
+  margin-top: 4px;
 }
-/* Units container — normal grid cell, sits beside Tubes Qty */
-.comm-field-wrap--units {
-  display: contents; /* let each unit row be a direct grid item */
-  padding: 0;
-  background: none;
-  border: none;
-}
-/* Each individual unit row — normal grid cell matching other comm-field-wraps */
-.comm-field-wrap--unit-row {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-.comm-field-wrap--unit-row label {
-  margin: 0;
-}
-/* Add-unit button — normal grid cell, button aligns with input row */
-.comm-field-wrap--add-unit {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-.comm-field-wrap--add-unit .btn {
-  width: 100%;
-  font-size: 11px;
-  padding: 6px 8px;
-  justify-content: center;
-}
-.comm-field-wrap {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
+
+/* Each vehicle / units card */
+.cf-card {
   background: var(--surface);
   border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  padding: 12px 14px;
+  border-radius: 14px;
+  padding: 14px 16px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  transition: border-color .18s, box-shadow .18s;
 }
-/* Label: title on top, full-width input below */
-.comm-field-wrap > label {
-  margin: 0;
-  display: flex !important;
-  flex-direction: column !important;
-  align-items: stretch !important;
-  gap: 6px;
-  font-size: 10px;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: .6px;
-  color: var(--text-dim);
-  white-space: nowrap;
+.cf-card:hover {
+  border-color: var(--border-hi);
+  box-shadow: 0 2px 12px rgba(0,0,0,.06);
 }
-.comm-field-wrap > label input[type="number"] {
-  width: 100% !important;
-  text-align: center;
-  padding: 8px 10px;
-  font-size: 15px;
-  font-weight: 600;
-  font-family: var(--mono);
-  border-radius: 8px;
-}
-/* Unit rows already column — no extra override needed */
-.comm-field-wrap--unit-row > label {
-  white-space: normal;
-}
-.div-row {
+
+/* Card header row: label + rate badge + add button */
+.cf-header {
   display: flex;
   align-items: center;
   gap: 6px;
-  margin-top: 2px;
 }
-.div-label {
-  font-size: 10px;
+.cf-label {
+  font-size: 11px;
   font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: .6px;
-  color: var(--text-dim);
+  letter-spacing: .5px;
+  color: var(--text);
   white-space: nowrap;
 }
-.div-row select {
-  flex: 1;
-  font-size: 12px;
-  padding: 5px 8px;
-  min-width: 0;
-  border-radius: 7px;
+.cf-rate {
+  font-size: 10px;
+  font-weight: 500;
+  color: var(--text-dim);
+  background: var(--surface-3);
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  padding: 1px 7px;
+  white-space: nowrap;
 }
+.cf-add-btn {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 9px;
+  border-radius: 20px;
+  border: 1.5px solid var(--blue-border);
+  background: var(--blue-bg);
+  color: var(--blue);
+  font-size: 10px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all .15s ease;
+  white-space: nowrap;
+  letter-spacing: .3px;
+  flex-shrink: 0;
+}
+.cf-add-btn:hover {
+  background: var(--blue);
+  color: #fff;
+  border-color: var(--blue);
+}
+.cf-add-btn:disabled {
+  opacity: .4;
+  cursor: not-allowed;
+}
+
+/* Each quantity + workers row */
+.cf-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 6px 10px;
+}
+.cf-row + .cf-row {
+  border-style: dashed;
+}
+
+/* Big quantity input */
+.cf-qty-input {
+  width: 60px !important;
+  flex-shrink: 0;
+  text-align: center !important;
+  font-size: 18px !important;
+  font-weight: 700 !important;
+  font-family: var(--mono) !important;
+  padding: 4px 6px !important;
+  border: none !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  color: var(--text) !important;
+  border-radius: 6px !important;
+}
+.cf-qty-input:focus {
+  outline: none !important;
+  background: var(--surface) !important;
+  box-shadow: 0 0 0 2px var(--blue-border) !important;
+}
+.cf-qty-input::placeholder { color: var(--muted) !important; }
+
+/* Divider wrapper */
+.cf-divider-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1;
+  min-width: 0;
+}
+.cf-divider-label {
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: .6px;
+  text-transform: uppercase;
+  color: var(--text-dim);
+}
+.cf-divider-select {
+  font-size: 12px !important;
+  padding: 4px 8px !important;
+  border-radius: 7px !important;
+  width: 100% !important;
+  border-color: var(--border) !important;
+  background: var(--surface) !important;
+}
+
+/* Remove row button */
+.cf-remove-btn {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  border: 1px solid var(--border);
+  background: none;
+  color: var(--text-dim);
+  cursor: pointer;
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  transition: all .15s ease;
+}
+.cf-remove-btn:hover {
+  border-color: var(--danger);
+  color: var(--danger);
+  background: #fef2f2;
+}
+.cf-remove-placeholder {
+  width: 22px;
+  flex-shrink: 0;
+}
+
+/* Brand bar above the grid */
+.cf-brand-bar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 14px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  margin-bottom: 14px;
+  flex-wrap: wrap;
+}
+.cf-brand-label {
+  display: flex !important;
+  flex-direction: row !important;
+  align-items: center !important;
+  gap: 8px !important;
+  margin: 0 !important;
+  font-size: 10px !important;
+  font-weight: 700 !important;
+  letter-spacing: .8px !important;
+  text-transform: uppercase !important;
+  color: var(--text-dim) !important;
+  white-space: nowrap;
+}
+.cf-brand-label select {
+  font-size: 13px !important;
+  font-weight: 600 !important;
+  padding: 6px 12px !important;
+  width: auto !important;
+  min-width: 120px;
+}
+
+/* Legacy compat — keep .brand-rate-hint working */
 .brand-rate-hint {
   background: var(--surface-2);
   border: 1px solid var(--border);
   border-radius: 8px;
   padding: 4px 10px;
 }
+
+/* Dark mode overrides for cf cards */
+[data-theme="dark"] .cf-card {
+  background: var(--surface-2);
+}
+[data-theme="dark"] .cf-row {
+  background: var(--surface-3);
+}
+[data-theme="dark"] .cf-remove-btn:hover {
+  background: #2a1010;
+}
+
+
 
 /* ── Offsite holiday entry greyed overlay ── */
 .entry-offsite {
@@ -2317,150 +2434,3 @@ textarea:focus {
 .fnp-top-btn:hover { background: rgba(255,255,255,.22); }
 .fnp-top-btn i { width: 14px; height: 14px; }
 
-/* ══════════════════════════════════════════
-   COMMISSION SECTION — IMPROVED UI (v3)
-   ══════════════════════════════════════════ */
-
-/* Vehicle list rows inside each comm-field-wrap card */
-.vlist-row {
-  background: var(--surface-2);
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  padding: 8px 10px;
-  margin-top: 6px;
-}
-
-/* The first vlist-row gets no top-margin (it's directly under the label) */
-.vlist-row:first-child {
-  margin-top: 0;
-}
-
-/* "+ more" secondary rows slightly dimmer */
-.vlist-row + .vlist-row {
-  border-style: dashed;
-  opacity: .9;
-}
-
-/* The inline + button for adding more rows — make it visually distinct */
-.comm-field-wrap button[onclick*="addVehicleRow"],
-.comm-field-wrap button[onclick*="addUnitsRow"] {
-  width: 20px;
-  height: 20px;
-  border-radius: 50%;
-  border: 1.5px solid var(--blue);
-  background: var(--blue-bg);
-  color: var(--blue);
-  font-size: 14px;
-  font-weight: 700;
-  line-height: 1;
-  cursor: pointer;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  transition: all .15s ease;
-  flex-shrink: 0;
-}
-.comm-field-wrap button[onclick*="addVehicleRow"]:hover,
-.comm-field-wrap button[onclick*="addUnitsRow"]:hover {
-  background: var(--blue);
-  color: #fff;
-  transform: scale(1.1);
-}
-
-/* ══════════════════════════════════════════
-   DAY TYPE SECTION — IMPROVED LAYOUT (v3)
-   ══════════════════════════════════════════ */
-
-/* Give the day-type grid exactly 3 equal columns so toggles + holiday select line up */
-.entry-section .entry-grid {
-  grid-template-columns: 1fr 1fr 1fr;
-  align-items: stretch;
-  gap: 12px;
-}
-
-@media (max-width: 900px) {
-  .entry-section .entry-grid {
-    grid-template-columns: 1fr 1fr;
-  }
-}
-
-@media (max-width: 600px) {
-  .entry-section .entry-grid {
-    grid-template-columns: 1fr;
-  }
-}
-
-/* Holiday pay label group — fill height */
-.entry-section .entry-grid > label[style*="flex-direction:column"] {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  justify-content: flex-start;
-}
-
-/* Holiday notes sub-field — polished */
-#holiday-notes-wrap-\* input,
-[id^="holiday-notes-wrap-"] input {
-  font-size: 13px;
-  padding: 8px 12px;
-  border-radius: 8px;
-  border: 1px solid var(--amber-border);
-  background: var(--amber-bg);
-  color: var(--text);
-  transition: .18s;
-}
-[id^="holiday-notes-wrap-"] input:focus {
-  border-color: var(--amber);
-  box-shadow: 0 0 0 3px rgba(217, 119, 6, .1);
-  background: var(--surface);
-  outline: none;
-}
-[id^="holiday-notes-wrap-"] input::placeholder {
-  color: var(--amber);
-  opacity: .6;
-  font-style: italic;
-}
-
-/* ══════════════════════════════════════════
-   COMMISSION — brand bar spacing
-   ══════════════════════════════════════════ */
-.commission-grid-header {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  margin-bottom: 14px;
-  flex-wrap: wrap;
-}
-
-/* Commission section brand+hint bar */
-.entry-section > div[style*="display:flex"][style*="gap:10px"] {
-  margin-bottom: 14px;
-  padding: 10px 14px;
-  background: var(--surface-2);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-}
-
-/* Overtime grid — same comfortable column sizing */
-.entry-section .entry-grid:not(:has(.toggle-check)) {
-  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
-}
-
-/* Entry section headings — slightly bolder visual separator */
-.entry-section h4 {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 9.5px;
-  font-weight: 800;
-  letter-spacing: 1.8px;
-  text-transform: uppercase;
-  color: var(--text-dim);
-  margin-bottom: 14px;
-}
-.entry-section h4::after {
-  content: "";
-  flex: 1;
-  height: 1px;
-  background: var(--border);
-}
