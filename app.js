@@ -1015,14 +1015,27 @@ function renderEntries(pid) {
       </div>
       <div class="entry-section">
         <h4>Day Type</h4>
-        <div class="entry-grid" style="align-items:start">
+        <div class="daytype-row1">
           <label class="toggle-check tone-amber ${e.is_halfday && !isOffsite ? 'is-checked' : ''}" style="${isOffsite ? offOpacity : ''}">
             <input type="checkbox" ${e.is_halfday ? "checked" : ""} ${isOffsite ? "disabled" : ""} onchange="updateEntry('${pid}','${e.id}','is_halfday',this.checked);this.closest('.toggle-check').classList.toggle('is-checked',this.checked)">
             <span class="toggle-box"><svg viewBox="0 0 14 12" fill="none"><polyline points="2,6.5 5.5,10 12,2.5" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
-            Half Day (½ base rate)
+            Half Day
           </label>
-          <label style="flex-direction:column;gap:6px">
-            <span style="font-size:10px;font-weight:700;letter-spacing:.8px;text-transform:uppercase;color:var(--text-dim)">Holiday Pay</span>
+          <label class="toggle-check tone-blue ${e.is_offset ? "is-checked" : ""}">
+            <input type="checkbox" ${e.is_offset ? "checked" : ""} onchange="updateEntry('${pid}','${e.id}','is_offset',this.checked);this.closest('.toggle-check').classList.toggle('is-checked',this.checked)">
+            <span class="toggle-box"><svg viewBox="0 0 14 12" fill="none"><polyline points="2,6.5 5.5,10 12,2.5" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+            Offset (₱1,000)
+          </label>
+          <label class="daytype-inline-label">Gas
+            <input type="number" min="0" value="${e.gas_allowance || 0}" onchange="updateEntry('${pid}','${e.id}','gas_allowance',this.value)">
+          </label>
+          <label class="daytype-inline-label">Notes
+            <input value="${e.notes || ""}" placeholder="optional…" onchange="updateEntry('${pid}','${e.id}','notes',this.value)">
+          </label>
+        </div>
+        <div class="daytype-row2">
+          <label class="daytype-holiday-label">
+            <span>Holiday Pay</span>
             <select onchange="onHolidayTypeChange('${pid}','${e.id}',this.value)"
               class="holiday-type-sel htype-${holidayType}"
               style="${holidayType === 'offsite' ? 'border-color:var(--purple);background:var(--purple-bg);color:var(--purple)' : holidayType === 'onsite' ? 'border-color:var(--green);background:var(--green-bg);color:var(--green)' : holidayType === 'special' ? 'border-color:var(--amber);background:var(--amber-bg);color:var(--amber)' : holidayType === 'regular' ? 'border-color:#dc2626;background:#fef2f2;color:#dc2626' : ''}">
@@ -1032,42 +1045,25 @@ function renderEntries(pid) {
               <option value="offsite" ${holidayType === "offsite" ? "selected" : ""}>Holiday Offsite (+₱1,000, no work)</option>
               <option value="special" ${holidayType === "special" ? "selected" : ""}>Special Holiday (+30% of daily rate)</option>
             </select>
-            ${holidayType !== 'none' ? `
-            <div class="holiday-detail-card htype-card-${holidayType}">
-              <div class="holiday-detail-row">
-                <div class="holiday-detail-field">
-                  <span class="holiday-detail-label">Holiday Notes <span style="font-weight:400;font-style:italic">(optional)</span></span>
-                  <input type="text" placeholder="e.g. New Year's Day" value="${(e.holiday_notes || '').replace(/"/g,'&quot;')}"
-                    onchange="updateEntry('${pid}','${e.id}','holiday_notes',this.value)">
-                </div>
-                <div class="holiday-detail-field holiday-pay-chip">
-                  <span class="holiday-detail-label">Holiday Bonus</span>
-                  <span class="holiday-pay-badge hbadge-${holidayType}">
-                    ${holidayType === 'regular' ? `+₱${((emp ? emp.base_rate : 1000) * (e.is_halfday ? 0.5 : 1)).toLocaleString()} (100% base)` : holidayType === 'onsite' ? '+₱1,000 (Onsite)' : holidayType === 'offsite' ? '+₱1,000 (Offsite)' : '+' + Math.round((emp ? emp.base_rate : 1000) * 0.3).toLocaleString() + ' (30% rate)'}
-                  </span>
-                  ${holidayType === 'regular' ? `<span style="font-size:10px;color:#dc2626;font-weight:600;margin-top:2px">= ₱${((emp ? emp.base_rate : 1000) * (e.is_halfday ? 1 : 2)).toLocaleString()} total</span>` : ''}
-                </div>
+          </label>
+          ${holidayType !== 'none' ? `
+          <div class="holiday-detail-card htype-card-${holidayType}" style="flex:1;margin:0">
+            <div class="holiday-detail-row">
+              <div class="holiday-detail-field">
+                <span class="holiday-detail-label">Holiday Notes <span style="font-weight:400;font-style:italic">(optional)</span></span>
+                <input type="text" placeholder="e.g. New Year's Day" value="${(e.holiday_notes || '').replace(/"/g,'&quot;')}"
+                  onchange="updateEntry('${pid}','${e.id}','holiday_notes',this.value)">
               </div>
-            </div>` : ''}
-            <div id="holiday-notes-wrap-${e.id}" style="display:none"></div>
-          </label>
-          <label style="flex-direction:column;gap:6px;font-size:10px;font-weight:700;letter-spacing:.8px;text-transform:uppercase;color:var(--text-dim)">
-            Notes
-            <input style="text-transform:none;letter-spacing:0;font-weight:400;font-size:13px" value="${e.notes || ""}" placeholder="Optional note…" onchange="updateEntry('${pid}','${e.id}','notes',this.value)">
-          </label>
-        </div>
-        <div class="entry-sub-row">
-          <label class="toggle-check tone-blue ${e.is_offset ? "is-checked" : ""}">
-            <input type="checkbox" ${e.is_offset ? "checked" : ""} onchange="updateEntry('${pid}','${e.id}','is_offset',this.checked);this.closest('.toggle-check').classList.toggle('is-checked',this.checked)">
-            <span class="toggle-box"><svg viewBox="0 0 14 12" fill="none"><polyline points="2,6.5 5.5,10 12,2.5" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
-            Offset (₱1,000)
-          </label>
-        </div>
-        <div class="entry-sub-row">
-          <label style="flex-direction:column;gap:6px;font-size:10px;font-weight:700;letter-spacing:.8px;text-transform:uppercase;color:var(--text-dim)">
-            Gas Allowance
-            <input type="number" min="0" style="text-transform:none;letter-spacing:0;font-weight:400" value="${e.gas_allowance || 0}" onchange="updateEntry('${pid}','${e.id}','gas_allowance',this.value)">
-          </label>
+              <div class="holiday-detail-field holiday-pay-chip">
+                <span class="holiday-detail-label">Holiday Bonus</span>
+                <span class="holiday-pay-badge hbadge-${holidayType}">
+                  ${holidayType === 'regular' ? `+₱${((emp ? emp.base_rate : 1000) * (e.is_halfday ? 0.5 : 1)).toLocaleString()} (100% base)` : holidayType === 'onsite' ? '+₱1,000 (Onsite)' : holidayType === 'offsite' ? '+₱1,000 (Offsite)' : '+' + Math.round((emp ? emp.base_rate : 1000) * 0.3).toLocaleString() + ' (30% rate)'}
+                </span>
+                ${holidayType === 'regular' ? `<span style="font-size:10px;color:#dc2626;font-weight:600;margin-top:2px">= ₱${((emp ? emp.base_rate : 1000) * (e.is_halfday ? 1 : 2)).toLocaleString()} total</span>` : ''}
+              </div>
+            </div>
+          </div>` : ''}
+          <div id="holiday-notes-wrap-${e.id}" style="display:none"></div>
         </div>
       </div>
       <div class="entry-section" style="${isOffsite ? offOpacity : ''}">

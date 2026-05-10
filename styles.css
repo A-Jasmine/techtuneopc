@@ -2230,29 +2230,53 @@ textarea:focus {
   flex-shrink: 0;
 }
 
-/* Offset and Gas rows — each sits below col-1 of the Day Type grid */
-.entry-sub-row {
-  margin-top: 10px;
-  /* Limit width to match the first column of the entry-grid above */
-  max-width: calc(33.33% - 10px);
-}
-.entry-sub-row .toggle-check {
-  margin-top: 0;
-  width: 100%;
-}
-.entry-sub-row > label {
+/* ── Day Type compact layout ── */
+.daytype-row1 {
   display: flex;
-  flex-direction: column;
-  gap: 7px;
-  font-size: 10px;
-  font-weight: 700;
-  letter-spacing: .8px;
-  text-transform: uppercase;
-  color: var(--text-dim);
-  width: 100%;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
 }
-@media (max-width: 600px) {
-  .entry-sub-row { max-width: 100%; }
+.daytype-row1 .toggle-check {
+  margin-top: 0;
+  flex-shrink: 0;
+  padding: 8px 12px;
+  font-size: 12px;
+}
+.daytype-inline-label {
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 4px !important;
+  font-size: 10px !important;
+  font-weight: 700 !important;
+  letter-spacing: .7px !important;
+  text-transform: uppercase !important;
+  color: var(--text-dim) !important;
+  min-width: 80px;
+  flex: 1;
+}
+.daytype-inline-label input {
+  font-size: 13px;
+  padding: 7px 10px;
+}
+.daytype-row2 {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  margin-top: 10px;
+  flex-wrap: wrap;
+}
+.daytype-holiday-label {
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 5px !important;
+  font-size: 10px !important;
+  font-weight: 700 !important;
+  letter-spacing: .7px !important;
+  text-transform: uppercase !important;
+  color: var(--text-dim) !important;
+  min-width: 200px;
+  flex-shrink: 0;
 }
 
 /* Brand bar above the grid */
