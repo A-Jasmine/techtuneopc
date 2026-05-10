@@ -2061,17 +2061,14 @@ textarea:focus {
   grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
   gap: 10px;
 }
-/* Units container spans full width and holds its own nested card grid */
+/* Units container — normal grid cell, sits beside Tubes Qty */
 .comm-field-wrap--units {
-  grid-column: 1 / -1;
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
-  gap: 10px;
+  display: contents; /* let each unit row be a direct grid item */
   padding: 0;
   background: none;
   border: none;
 }
-/* Each individual unit row card matches the regular comm-field-wrap style */
+/* Each individual unit row — normal grid cell matching other comm-field-wraps */
 .comm-field-wrap--unit-row {
   display: flex;
   flex-direction: column;
@@ -2080,11 +2077,18 @@ textarea:focus {
 .comm-field-wrap--unit-row label {
   margin: 0;
 }
-/* Add-unit button card — same width as a normal card */
+/* Add-unit button — normal grid cell, self-aligns to end vertically */
 .comm-field-wrap--add-unit {
   display: flex;
-  align-items: flex-start;
-  padding-top: 2px;
+  flex-direction: column;
+  justify-content: flex-end;
+  gap: 4px;
+}
+.comm-field-wrap--add-unit .btn {
+  width: 100%;
+  font-size: 11px;
+  padding: 6px 8px;
+  justify-content: center;
 }
 .comm-field-wrap {
   display: flex;

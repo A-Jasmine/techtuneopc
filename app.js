@@ -647,7 +647,7 @@ function renderUnitsListUI(pid, eid) {
         </div>
       </label>
       <div class="div-row"><span class="div-label">Workers</span>
-        <select style="width:80px;font-size:12px" title="Divide by (# of workers)" ${disAttr} onchange="updateUnitsRow('${pid}','${eid}',${i},'div',this.value)">
+        <select style="flex:1;font-size:12px" title="Divide by (# of workers)" ${disAttr} onchange="updateUnitsRow('${pid}','${eid}',${i},'div',this.value)">
           <option value="1" ${(+u.div||1)===1?"selected":""}>÷1</option>
           <option value="2" ${(+u.div||1)===2?"selected":""}>÷2</option>
           <option value="3" ${(+u.div||1)===3?"selected":""}>÷3</option>
@@ -656,7 +656,7 @@ function renderUnitsListUI(pid, eid) {
       </div>
     </div>`).join("") + `
   <div class="comm-field-wrap comm-field-wrap--add-unit">
-    <button type="button" class="btn" style="width:100%;font-size:12px;gap:6px" ${disAttr} onclick="addUnitsRow('${pid}','${eid}')"><i data-lucide="plus"></i> Add Unit</button>
+    <button type="button" class="btn" ${disAttr} onclick="addUnitsRow('${pid}','${eid}')"><i data-lucide="plus"></i> Add Unit</button>
   </div>`;
   lucide.createIcons();
 }
