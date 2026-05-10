@@ -17,12 +17,12 @@ function loadCommissionRates() {
     const saved = localStorage.getItem("commissionRates");
     if (saved) {
       const p = JSON.parse(saved);
-      // Ensure each brand has all required fields
       const brands = p.__brands || [{ key: "byd", label: "BYD" }, { key: "geely", label: "Geely" }, { key: "other", label: "Other" }];
       brands.forEach(b => {
-        if (!p[b.key]) p[b.key] = { sedan: 0, mpv: 0, sunroof: 0, scrap: 0, units_rate: 0 };
+        if (!p[b.key]) p[b.key] = { sedan: 0, mpv: 0, sunroof: 0, scrap: 0, units_rate: 0, custom_fields: [] };
         if (p[b.key].scrap === undefined) p[b.key].scrap = 0;
         if (p[b.key].units_rate === undefined) p[b.key].units_rate = 0;
+        if (!Array.isArray(p[b.key].custom_fields)) p[b.key].custom_fields = [];
       });
       p.__brands = brands;
       return p;
@@ -34,10 +34,19 @@ function loadCommissionRates() {
       { key: "geely", label: "Geely" },
       { key: "other", label: "Other" }
     ],
-    byd: { sedan: 150, mpv: 200, sunroof: 50, scrap: 0, units_rate: 0 },
-    geely: { sedan: 200, mpv: 200, sunroof: 200, scrap: 0, units_rate: 0 },
-    other: { sedan: 0, mpv: 0, sunroof: 0, scrap: 0, units_rate: 0 }
+    byd: { sedan: 150, mpv: 200, sunroof: 50, scrap: 0, units_rate: 0, custom_fields: [] },
+    geely: { sedan: 200, mpv: 200, sunroof: 200, scrap: 0, units_rate: 0, custom_fields: [] },
+    other: { sedan: 0, mpv: 0, sunroof: 0, scrap: 0, units_rate: 0, custom_fields: [] }
   };
+}
+
+// Returns the custom_fields array for a brand: [{key, label, rate}]
+function getCustomFields(brandKey) {
+  const r = COMMISSION_RATES[brandKey];
+  return (r && Array.isArray(r.custom_fields)) ? r.custom_fields : [];
+}
+function customFieldKey(label) {
+  return "cf_" + label.toLowerCase().replace(/[^a-z0-9]/g, "_").replace(/_+/g, "_").replace(/^_|_$/g, "");
 }
 function saveCommissionRates(rates) {
   localStorage.setItem("commissionRates", JSON.stringify(rates));
@@ -49,7 +58,11 @@ let GEELY = COMMISSION_RATES.geely;
 const TUBE_RATE = 50, HOLIDAY_AMT = 1000, OFFSET_AMT = 1000;
 const SPECIAL_HOLIDAY_PCT = 0.30; // 30% of base rate
 const BASE_RATE_OPTIONS = [1000, 1100, 1200];
-const LOCATIONS = ["Calamba", "Sta. Rosa", "Las Piñas", "Alabang", "Makati", "Quezon City", "Pasig", "Manila", "Cavite", "Other"];
+const LOCATIONS = [
+  "Fairview", "Commonwealth", "Batangas City", "Subic", "BGC",
+  "Calamba Laguna", "Sucat", "Pasong Tamo", "NYK Cabuyao Laguna",
+  "Quezon City", "Pasig", "Sto. Tomas", "Lucena", "Turbina Laguna", "Calapan"
+];
 const COMPANY = { name: "Techtune Solutions Enterprises OPC", addr1: "Unit 6505 Valencia Casa De Sequoia", addr2: "Padre Diego Cera Ave., Elias Aldana, Las Pinas City", email: "techtunesolutions.enterprises@gmail.com" };
 
 // derive hourly OT from base rate (orig 1000 -> 156.25 -> /6.4)
@@ -97,8 +110,14 @@ function parseVehicleLists(e) {
       const legacyDivKey = t === "scrap" ? "scrap_div" : t + "_div";
       const legacyQty = +e[legacyQtyKey] || 0;
       const legacyDiv = +e[legacyDivKey] || 1;
-      // Seed with legacy data if available, otherwise one blank row so the field is visible by default
       parsed[t] = [{ qty: legacyQty, div: legacyDiv > 0 ? legacyDiv : 1 }];
+    }
+  });
+  // Ensure custom field rows exist (one default row each)
+  const customFields = getCustomFields(e.brand);
+  customFields.forEach(cf => {
+    if (!Array.isArray(parsed[cf.key]) || parsed[cf.key].length === 0) {
+      parsed[cf.key] = [{ qty: 0, div: 1 }];
     }
   });
   return parsed;
@@ -131,13 +150,20 @@ function calcEntry(e, baseRate) {
     return sum + round2((+u.qty || 0) * (r.units_rate || 0) / safeDiv(+u.div || 1));
   }, 0);
 
+  // Custom field commissions
+  const customFieldsForBrand = getCustomFields(e.brand);
+  const customCommission = customFieldsForBrand.reduce((s, cf) => {
+    return s + sumVehicleRows(vl[cf.key] || [], cf.rate || 0, globalDiv);
+  }, 0);
+
   const commission = round2(
     sumVehicleRows(vl.sedan, r.sedan || 0, globalDiv) +
     sumVehicleRows(vl.mpv, r.mpv || 0, globalDiv) +
     sumVehicleRows(vl.sunroof, r.sunroof || 0, globalDiv) +
     sumVehicleRows(vl.scrap, r.scrap || 0, globalDiv) +
     sumVehicleRows(vl.tubes, TUBE_RATE, globalDiv) +
-    unitsCommission
+    unitsCommission +
+    customCommission
   );
   const otHrs = (+e.ot_hours || 0) + (+e.ot_minutes || 0) / 60;
   const otPay = round2(otHrs * (+e.ot_rate || otRateFromBase(baseRate)));
@@ -749,6 +775,86 @@ function renderVehicleListUI(pid, eid, type) {
   wrap.innerHTML = header + rowsHTML;
   lucide.createIcons();
 }
+// Renders all custom field vehicle-list UIs for an entry (when brand changes or entry loads)
+function renderCustomFieldListsUI(pid, eid) {
+  const p = state.periods.find(x => x.id === pid);
+  const e = p && p.entries.find(x => x.id === eid);
+  if (!e) return;
+  const customFields = getCustomFields(e.brand);
+  customFields.forEach(cf => {
+    // Ensure the wrapper exists; it may have been created in renderEntries HTML
+    const wrap = document.getElementById(`vlist-${eid}-${cf.key}`);
+    if (!wrap) return;
+    const vl = parseVehicleLists(e);
+    const rows = vl[cf.key] || [{ qty: 0, div: 1 }];
+    const rate = cf.rate || 0;
+    const label = cf.label || cf.key;
+    const isOffsite = (e.holiday_type || (e.is_holiday ? "onsite" : "none")) === "offsite";
+    const dis = isOffsite ? "disabled" : "";
+    const header = `
+      <div class="cf-header">
+        <span class="cf-label">${label}</span>
+        <span class="cf-rate">₱${rate}/ea</span>
+        <button type="button" class="cf-add-btn" title="Add row" ${dis}
+          onclick="addCustomFieldRow('${pid}','${eid}','${cf.key}')">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>Add
+        </button>
+      </div>`;
+    const rowsHTML = rows.map((row, i) => {
+      const divOpts = Array.from({length:10},(_,k)=>k+1).map(n=>`<option value="${n}" ${(+row.div||1)===n?"selected":""}>${String.fromCharCode(247)}${n}</option>`).join("");
+      const canRemove = !(i === 0 && rows.length === 1);
+      return `
+      <div class="cf-row">
+        <input class="cf-qty-input" type="number" min="0" value="${row.qty||0}" placeholder="0" ${dis}
+          onchange="updateCustomFieldRow('${pid}','${eid}','${cf.key}',${i},'qty',this.value)">
+        <div class="cf-divider-wrap">
+          <span class="cf-divider-label">÷ workers</span>
+          <select class="cf-divider-select" ${dis}
+            onchange="updateCustomFieldRow('${pid}','${eid}','${cf.key}',${i},'div',this.value)">${divOpts}</select>
+        </div>
+        ${canRemove
+          ? `<button type="button" class="cf-remove-btn" ${dis}
+               onclick="removeCustomFieldRow('${pid}','${eid}','${cf.key}',${i})">
+               <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+             </button>`
+          : `<span class="cf-remove-placeholder"></span>`}
+      </div>`;
+    }).join("");
+    wrap.innerHTML = header + rowsHTML;
+  });
+  lucide.createIcons();
+}
+
+function addCustomFieldRow(pid, eid, cfKey) {
+  const p = state.periods.find(x => x.id === pid);
+  const e = p && p.entries.find(x => x.id === eid);
+  if (!e) return;
+  const vl = parseVehicleLists(e);
+  if (!Array.isArray(vl[cfKey])) vl[cfKey] = [];
+  vl[cfKey].push({ qty: 0, div: 1 });
+  saveVehicleLists(pid, eid, vl);
+  renderCustomFieldListsUI(pid, eid);
+}
+function removeCustomFieldRow(pid, eid, cfKey, idx) {
+  const p = state.periods.find(x => x.id === pid);
+  const e = p && p.entries.find(x => x.id === eid);
+  if (!e) return;
+  const vl = parseVehicleLists(e);
+  if (!Array.isArray(vl[cfKey])) return;
+  vl[cfKey].splice(idx, 1);
+  saveVehicleLists(pid, eid, vl);
+  renderCustomFieldListsUI(pid, eid);
+}
+function updateCustomFieldRow(pid, eid, cfKey, idx, field, val) {
+  const p = state.periods.find(x => x.id === pid);
+  const e = p && p.entries.find(x => x.id === eid);
+  if (!e) return;
+  const vl = parseVehicleLists(e);
+  if (!vl[cfKey] || !vl[cfKey][idx]) return;
+  vl[cfKey][idx][field] = field === "div" ? (+val || 1) : (+val || 0);
+  saveVehicleLists(pid, eid, vl);
+}
+
 function addUnitsRow(pid, eid) {
   const p = state.periods.find(x => x.id === pid);
   const e = p.entries.find(x => x.id === eid);
@@ -903,24 +1009,39 @@ function renderEntries(pid) {
       </div>
       <div class="entry-section">
         <h4>Day Type</h4>
-        <div class="entry-grid" style="align-items:end">
+        <div class="entry-grid" style="align-items:start">
           <label class="toggle-check tone-amber ${e.is_halfday && !isOffsite ? 'is-checked' : ''}" style="${isOffsite ? offOpacity : ''}">
             <input type="checkbox" ${e.is_halfday ? "checked" : ""} ${isOffsite ? "disabled" : ""} onchange="updateEntry('${pid}','${e.id}','is_halfday',this.checked);this.closest('.toggle-check').classList.toggle('is-checked',this.checked)">
             <span class="toggle-box"><svg viewBox="0 0 14 12" fill="none"><polyline points="2,6.5 5.5,10 12,2.5" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
             Half Day (½ base rate)
           </label>
-          <label style="flex-direction:column;gap:4px">
+          <label style="flex-direction:column;gap:6px">
             <span style="font-size:10px;font-weight:700;letter-spacing:.8px;text-transform:uppercase;color:var(--text-dim)">Holiday Pay</span>
-            <select onchange="onHolidayTypeChange('${pid}','${e.id}',this.value)" style="${holidayType === 'offsite' ? 'border-color:var(--purple);background:var(--purple-bg);color:var(--purple)' : holidayType === 'onsite' ? 'border-color:var(--green);background:var(--green-bg);color:var(--green)' : holidayType === 'special' ? 'border-color:var(--amber);background:var(--amber-bg);color:var(--amber)' : ''}">
+            <select onchange="onHolidayTypeChange('${pid}','${e.id}',this.value)"
+              class="holiday-type-sel htype-${holidayType}"
+              style="${holidayType === 'offsite' ? 'border-color:var(--purple);background:var(--purple-bg);color:var(--purple)' : holidayType === 'onsite' ? 'border-color:var(--green);background:var(--green-bg);color:var(--green)' : holidayType === 'special' ? 'border-color:var(--amber);background:var(--amber-bg);color:var(--amber)' : ''}">
               <option value="none"    ${holidayType === "none" ? "selected" : ""}>None</option>
               <option value="onsite"  ${holidayType === "onsite" ? "selected" : ""}>Holiday Onsite (+₱1,000)</option>
               <option value="offsite" ${holidayType === "offsite" ? "selected" : ""}>Holiday Offsite (+₱1,000, no work)</option>
               <option value="special" ${holidayType === "special" ? "selected" : ""}>Special Holiday (+30% of daily rate)</option>
             </select>
-            <div id="holiday-notes-wrap-${e.id}" style="display:${holidayType !== 'none' ? 'flex' : 'none'};flex-direction:column;gap:3px;margin-top:4px">
-              <span style="font-size:10px;font-weight:600;color:var(--text-dim)">Holiday Notes <span style="font-weight:400;font-style:italic">(optional)</span></span>
-              <input type="text" placeholder="e.g. New Year Holiday" value="${(e.holiday_notes || '').replace(/"/g,'&quot;')}" onchange="updateEntry('${pid}','${e.id}','holiday_notes',this.value)" style="font-size:12px;padding:5px 8px">
-            </div>
+            ${holidayType !== 'none' ? `
+            <div class="holiday-detail-card htype-card-${holidayType}">
+              <div class="holiday-detail-row">
+                <div class="holiday-detail-field">
+                  <span class="holiday-detail-label">Holiday Notes <span style="font-weight:400;font-style:italic">(optional)</span></span>
+                  <input type="text" placeholder="e.g. New Year's Day" value="${(e.holiday_notes || '').replace(/"/g,'&quot;')}"
+                    onchange="updateEntry('${pid}','${e.id}','holiday_notes',this.value)">
+                </div>
+                <div class="holiday-detail-field holiday-pay-chip">
+                  <span class="holiday-detail-label">Holiday Bonus</span>
+                  <span class="holiday-pay-badge hbadge-${holidayType}">
+                    ${holidayType === 'onsite' ? '+₱1,000 (Onsite)' : holidayType === 'offsite' ? '+₱1,000 (Offsite)' : '+' + Math.round((emp ? emp.base_rate : 1000) * 0.3).toLocaleString() + ' (30% rate)'}
+                  </span>
+                </div>
+              </div>
+            </div>` : ''}
+            <div id="holiday-notes-wrap-${e.id}" style="display:none"></div>
           </label>
           <label class="toggle-check tone-blue ${e.is_offset ? "is-checked" : ""}">
             <input type="checkbox" ${e.is_offset ? "checked" : ""} onchange="updateEntry('${pid}','${e.id}','is_offset',this.checked);this.closest('.toggle-check').classList.toggle('is-checked',this.checked)">
@@ -947,12 +1068,13 @@ function renderEntries(pid) {
           </label>
           ${brandHint}
         </div>
-        <div class="commission-grid">
+        <div class="commission-grid" id="comm-grid-${e.id}">
           <div class="cf-card" id="vlist-${e.id}-sedan"></div>
           <div class="cf-card" id="vlist-${e.id}-mpv"></div>
           <div class="cf-card" id="vlist-${e.id}-sunroof"></div>
           <div class="cf-card" id="vlist-${e.id}-scrap"></div>
           <div class="cf-card" id="vlist-${e.id}-tubes"></div>
+          ${getCustomFields(e.brand).map(cf => `<div class="cf-card" id="vlist-${e.id}-${cf.key}"></div>`).join("")}
           <div class="cf-card" id="units-list-${e.id}"></div>
         </div>
       </div>
@@ -970,9 +1092,10 @@ function renderEntries(pid) {
     </div>`;
   }).join("");
   lucide.createIcons();
-  // Populate dynamic vehicle lists and units lists for each entry
+  // Populate dynamic vehicle lists, custom field lists, and units lists for each entry
   p.entries.forEach(e => {
     VEHICLE_TYPES.forEach(t => renderVehicleListUI(pid, e.id, t));
+    renderCustomFieldListsUI(pid, e.id);
     renderUnitsListUI(pid, e.id);
   });
 }
@@ -984,10 +1107,7 @@ async function onHolidayTypeChange(pid, eid, type) {
   e.holiday_type = type;
   e.is_holiday = (type === "onsite" || type === "offsite" || type === "special");
   await sb.from('entries').update({ holiday_type: type, is_holiday: e.is_holiday }).eq('id', eid);
-  // Toggle the holiday notes field visibility in-place without full re-render
-  const notesWrap = document.getElementById(`holiday-notes-wrap-${eid}`);
-  if (notesWrap) notesWrap.style.display = type !== "none" ? "flex" : "none";
-  editPeriod(pid); // full re-render so offsite greying applies
+  editPeriod(pid); // full re-render so offsite greying and holiday card apply
 }
 
 // =============== DEDUCTIONS ===============
@@ -1242,6 +1362,7 @@ function renderBrandMgmtBody() {
   }
   body.innerHTML = brands.map((b, idx) => {
     const r = COMMISSION_RATES[b.key] || {};
+    const customFields = Array.isArray(r.custom_fields) ? r.custom_fields : [];
     const isFirst = idx === 0;
     return `
       <div style="padding:20px 4px;${isFirst ? '' : 'border-top:1px solid var(--border);margin-top:4px'}">
@@ -1250,27 +1371,108 @@ function renderBrandMgmtBody() {
           <button class="btn danger" style="padding:4px 10px;font-size:11px" onclick="removeBrand('${b.key}')"><i data-lucide="trash-2"></i> Remove</button>
         </div>
         <div style="display:grid;gap:8px">
-          <div style="display:grid;grid-template-columns:160px 1fr 1fr;gap:10px;align-items:end;padding-bottom:4px;border-bottom:1px solid var(--border)">
-            <span style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:var(--text-dim)">Vehicle Type</span>
+          <div style="display:grid;grid-template-columns:160px 1fr 1fr 32px;gap:10px;align-items:end;padding-bottom:4px;border-bottom:1px solid var(--border)">
+            <span style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:var(--text-dim)">Field / Type</span>
             <span style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:var(--text-dim)">Rate per unit (₱)</span>
             <span style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:var(--text-dim)">Default Qty</span>
+            <span></span>
           </div>
           ${RATE_FIELDS.map(f => `
-            <div style="display:grid;grid-template-columns:160px 1fr 1fr;gap:10px;align-items:center">
+            <div style="display:grid;grid-template-columns:160px 1fr 1fr 32px;gap:10px;align-items:center">
               <span style="font-size:12px;font-weight:600;color:var(--text)">${f.label}</span>
               <input type="number" id="sr-${b.key}-${f.key}" min="0" value="${r[f.key] || 0}" placeholder="₱ rate">
               <input type="number" id="sq-${b.key}-${f.key}" min="0" value="${r[f.key + '_qty'] || r[f.key === 'units_rate' ? 'units_qty' : f.key === 'scrap' ? 'scrapping_qty' : f.key + '_qty'] || 0}" placeholder="default qty">
+              <span></span>
             </div>
           `).join("")}
-          <div style="display:grid;grid-template-columns:160px 1fr 1fr;gap:10px;align-items:center">
+          <div style="display:grid;grid-template-columns:160px 1fr 1fr 32px;gap:10px;align-items:center">
             <span style="font-size:12px;font-weight:600;color:var(--text)">Tubes</span>
             <input type="number" id="sr-${b.key}-tubes_rate" min="0" value="${r.tubes_rate || 0}" placeholder="₱ rate">
             <input type="number" id="sq-${b.key}-tubes" min="0" value="${r.tubes_qty || 0}" placeholder="default qty">
+            <span></span>
           </div>
+          ${customFields.map((cf, ci) => `
+            <div style="display:grid;grid-template-columns:160px 1fr 1fr 32px;gap:10px;align-items:center" id="cf-row-${b.key}-${ci}">
+              <div style="position:relative">
+                <input type="text" id="scf-name-${b.key}-${ci}" value="${cf.label}" placeholder="Field name"
+                  style="width:100%;padding-right:4px;font-size:12px;font-weight:600;color:var(--accent);border-color:var(--accent)"
+                  onchange="renameBrandCustomField('${b.key}',${ci},this.value)">
+              </div>
+              <input type="number" id="scf-rate-${b.key}-${ci}" min="0" value="${cf.rate || 0}" placeholder="₱ rate"
+                onchange="updateBrandCustomFieldRate('${b.key}',${ci},this.value)">
+              <input type="number" id="scf-qty-${b.key}-${ci}" min="0" value="${cf.default_qty || 0}" placeholder="default qty"
+                onchange="updateBrandCustomFieldQty('${b.key}',${ci},this.value)">
+              <button class="btn danger" style="padding:3px 7px;font-size:11px;min-width:0" title="Remove custom field"
+                onclick="removeBrandCustomField('${b.key}',${ci})"><i data-lucide="x"></i></button>
+            </div>
+          `).join("")}
+        </div>
+        <div style="margin-top:12px;display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:10px 12px;background:var(--surface-alt,var(--bg-alt));border-radius:8px;border:1px dashed var(--border)">
+          <i data-lucide="plus-circle" style="color:var(--accent);width:15px;height:15px"></i>
+          <span style="font-size:11px;font-weight:600;color:var(--text-dim);white-space:nowrap">Add custom field:</span>
+          <input type="text" id="new-cf-name-${b.key}" placeholder='e.g. "Pickup", "Van", "Ceramic"…'
+            style="flex:1;min-width:140px;font-size:12px" />
+          <input type="number" id="new-cf-rate-${b.key}" placeholder="₱ rate" min="0"
+            style="width:90px;font-size:12px" />
+          <button class="btn accent" style="padding:5px 12px;font-size:11px"
+            onclick="addBrandCustomField('${b.key}')"><i data-lucide="plus"></i> Add Field</button>
         </div>
       </div>`;
   }).join("");
   lucide.createIcons();
+}
+
+function addBrandCustomField(brandKey) {
+  const nameEl = document.getElementById(`new-cf-name-${brandKey}`);
+  const rateEl = document.getElementById(`new-cf-rate-${brandKey}`);
+  const label = (nameEl ? nameEl.value.trim() : "");
+  if (!label) return toast("Enter a field name");
+  const rate = rateEl ? (+rateEl.value || 0) : 0;
+  const key = customFieldKey(label) + "_" + Date.now();
+  const r = COMMISSION_RATES[brandKey];
+  if (!r) return;
+  if (!Array.isArray(r.custom_fields)) r.custom_fields = [];
+  if (r.custom_fields.find(cf => cf.label.toLowerCase() === label.toLowerCase()))
+    return toast(`"${label}" already exists for this brand`);
+  r.custom_fields.push({ key, label, rate, default_qty: 0 });
+  saveCommissionRates(COMMISSION_RATES);
+  if (nameEl) nameEl.value = "";
+  if (rateEl) rateEl.value = "";
+  renderBrandMgmtBody();
+  lucide.createIcons();
+  toast(`Custom field "${label}" added ✓`);
+}
+
+function removeBrandCustomField(brandKey, idx) {
+  const r = COMMISSION_RATES[brandKey];
+  if (!r || !Array.isArray(r.custom_fields)) return;
+  const cf = r.custom_fields[idx];
+  r.custom_fields.splice(idx, 1);
+  saveCommissionRates(COMMISSION_RATES);
+  renderBrandMgmtBody();
+  lucide.createIcons();
+  toast(`Custom field "${cf ? cf.label : ''}" removed`);
+}
+
+function renameBrandCustomField(brandKey, idx, newLabel) {
+  const r = COMMISSION_RATES[brandKey];
+  if (!r || !Array.isArray(r.custom_fields) || !r.custom_fields[idx]) return;
+  r.custom_fields[idx].label = newLabel.trim() || r.custom_fields[idx].label;
+  saveCommissionRates(COMMISSION_RATES);
+}
+
+function updateBrandCustomFieldRate(brandKey, idx, val) {
+  const r = COMMISSION_RATES[brandKey];
+  if (!r || !Array.isArray(r.custom_fields) || !r.custom_fields[idx]) return;
+  r.custom_fields[idx].rate = +val || 0;
+  saveCommissionRates(COMMISSION_RATES);
+}
+
+function updateBrandCustomFieldQty(brandKey, idx, val) {
+  const r = COMMISSION_RATES[brandKey];
+  if (!r || !Array.isArray(r.custom_fields) || !r.custom_fields[idx]) return;
+  r.custom_fields[idx].default_qty = +val || 0;
+  saveCommissionRates(COMMISSION_RATES);
 }
 
 function addBrandFromPreset() {
@@ -1324,12 +1526,12 @@ async function removeBrand(key) {
 function saveSettings() {
   const brands = COMMISSION_RATES.__brands || [];
   brands.forEach(b => {
-    const r = {};
+    const prev = COMMISSION_RATES[b.key] || {};
+    const r = { custom_fields: Array.isArray(prev.custom_fields) ? prev.custom_fields : [] };
     RATE_FIELDS.forEach(f => {
       const rateEl = document.getElementById(`sr-${b.key}-${f.key}`);
       const qtyEl = document.getElementById(`sq-${b.key}-${f.key}`);
       r[f.key] = rateEl ? (+rateEl.value || 0) : 0;
-      // Map field key to qty key
       const qtyKey = f.key === 'units_rate' ? 'units_qty' : f.key === 'scrap' ? 'scrapping_qty' : f.key + '_qty';
       r[qtyKey] = qtyEl ? (+qtyEl.value || 0) : 0;
     });
@@ -1337,6 +1539,15 @@ function saveSettings() {
     const tubesQtyEl = document.getElementById(`sq-${b.key}-tubes`);
     r.tubes_rate = tubesRateEl ? (+tubesRateEl.value || 0) : 0;
     r.tubes_qty = tubesQtyEl ? (+tubesQtyEl.value || 0) : 0;
+    // Persist any in-form edits to custom field names/rates/qtys
+    r.custom_fields.forEach((cf, ci) => {
+      const nameEl = document.getElementById(`scf-name-${b.key}-${ci}`);
+      const rateEl2 = document.getElementById(`scf-rate-${b.key}-${ci}`);
+      const qtyEl2 = document.getElementById(`scf-qty-${b.key}-${ci}`);
+      if (nameEl && nameEl.value.trim()) cf.label = nameEl.value.trim();
+      if (rateEl2) cf.rate = +rateEl2.value || 0;
+      if (qtyEl2) cf.default_qty = +qtyEl2.value || 0;
+    });
     COMMISSION_RATES[b.key] = r;
   });
   BYD = COMMISSION_RATES.byd || {};
