@@ -1051,10 +1051,22 @@ function renderEntries(pid) {
             </div>` : ''}
             <div id="holiday-notes-wrap-${e.id}" style="display:none"></div>
           </label>
+          <label style="flex-direction:column;gap:6px;font-size:10px;font-weight:700;letter-spacing:.8px;text-transform:uppercase;color:var(--text-dim)">
+            Notes
+            <input style="text-transform:none;letter-spacing:0;font-weight:400;font-size:13px" value="${e.notes || ""}" placeholder="Optional note…" onchange="updateEntry('${pid}','${e.id}','notes',this.value)">
+          </label>
+        </div>
+        <div class="entry-sub-row">
           <label class="toggle-check tone-blue ${e.is_offset ? "is-checked" : ""}">
             <input type="checkbox" ${e.is_offset ? "checked" : ""} onchange="updateEntry('${pid}','${e.id}','is_offset',this.checked);this.closest('.toggle-check').classList.toggle('is-checked',this.checked)">
             <span class="toggle-box"><svg viewBox="0 0 14 12" fill="none"><polyline points="2,6.5 5.5,10 12,2.5" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
             Offset (₱1,000)
+          </label>
+        </div>
+        <div class="entry-sub-row">
+          <label style="flex-direction:column;gap:6px;font-size:10px;font-weight:700;letter-spacing:.8px;text-transform:uppercase;color:var(--text-dim)">
+            Gas Allowance
+            <input type="number" min="0" style="text-transform:none;letter-spacing:0;font-weight:400" value="${e.gas_allowance || 0}" onchange="updateEntry('${pid}','${e.id}','gas_allowance',this.value)">
           </label>
         </div>
       </div>
@@ -1085,13 +1097,6 @@ function renderEntries(pid) {
           ${getCustomFields(e.brand).map(cf => `<div class="cf-card" id="vlist-${e.id}-${cf.key}"></div>`).join("")}
           <div class="cf-card" id="units-list-${e.id}"></div>
         </div>
-      </div>
-      <div class="entry-section">
-        <h4>Extras</h4>
-        <div class="entry-grid">
-          <label>Gas Allowance<input type="number" min="0" value="${e.gas_allowance || 0}" onchange="updateEntry('${pid}','${e.id}','gas_allowance',this.value)"></label>
-        </div>
-        <label style="margin-top:8px;display:flex;flex-direction:column;gap:6px;font-size:10px;font-weight:700;letter-spacing:.8px;text-transform:uppercase;color:var(--text-dim)">Notes<input value="${e.notes || ""}" onchange="updateEntry('${pid}','${e.id}','notes',this.value)"></label>
       </div>
       <div class="entry-foot">
         <div class="entry-totals"><span>Base: <strong>${peso(c.base)}</strong></span><span>Com: <strong>${peso(c.commission)}</strong></span><span>OT: <strong>${peso(c.otPay)}</strong></span><span>Holiday: <strong>${peso(c.holiday)}</strong></span></div>
