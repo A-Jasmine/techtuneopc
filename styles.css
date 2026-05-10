@@ -2094,14 +2094,13 @@ textarea:focus {
   flex-direction: column;
   gap: 4px;
 }
-/* Inline label: text on left, number input on right */
+/* Label: title on top, full-width input below */
 .comm-field-wrap > label {
   margin: 0;
   display: flex !important;
-  flex-direction: row !important;
-  align-items: center !important;
-  justify-content: space-between;
-  gap: 8px;
+  flex-direction: column !important;
+  align-items: stretch !important;
+  gap: 4px;
   font-size: 10px;
   font-weight: 700;
   text-transform: uppercase;
@@ -2110,21 +2109,14 @@ textarea:focus {
   white-space: nowrap;
 }
 .comm-field-wrap > label input[type="number"] {
-  width: 64px !important;
-  flex-shrink: 0;
+  width: 100% !important;
   text-align: center;
   padding: 6px 8px;
   font-size: 13px;
 }
-/* Unit rows: title+X on top line, full-width input below — column layout */
+/* Unit rows already column — no extra override needed */
 .comm-field-wrap--unit-row > label {
-  flex-direction: column !important;
-  align-items: stretch !important;
-  gap: 0 !important;
   white-space: normal;
-}
-.comm-field-wrap--unit-row > label input[type="number"] {
-  width: 100% !important;
 }
 .div-row {
   display: flex;
