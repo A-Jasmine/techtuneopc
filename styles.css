@@ -51,6 +51,174 @@
   --shadow-lg: 0 16px 48px rgba(0, 0, 0, .14), 0 4px 12px rgba(0, 0, 0, .06);
 }
 
+/* ── DARK MODE ── */
+[data-theme="dark"] {
+  --bg: #0f0f0f;
+  --surface: #1a1a1a;
+  --surface-2: #222222;
+  --surface-3: #2a2a2a;
+
+  --text: #f0f0f0;
+  --text-soft: #a0a0a0;
+  --text-dim: #666666;
+  --muted: #444444;
+
+  --black: #f0f0f0;
+  --off-black: #e0e0e0;
+
+  --border: rgba(255, 255, 255, .08);
+  --border-hi: rgba(255, 255, 255, .16);
+
+  --blue: #60a5fa;
+  --blue-bg: #172035;
+  --blue-border: #1e3a5f;
+
+  --green: #4ade80;
+  --green-bg: #0f2a1a;
+  --green-border: #166534;
+
+  --amber: #fbbf24;
+  --amber-bg: #2a1f0a;
+  --amber-border: #78350f;
+
+  --purple: #a78bfa;
+  --purple-bg: #1e1535;
+  --purple-border: #4c1d95;
+
+  --success: #4ade80;
+  --danger: #f87171;
+  --warn: #fbbf24;
+
+  --shadow-sm: 0 1px 3px rgba(0, 0, 0, .3), 0 1px 2px rgba(0, 0, 0, .2);
+  --shadow: 0 4px 16px rgba(0, 0, 0, .4), 0 1px 4px rgba(0, 0, 0, .2);
+  --shadow-lg: 0 16px 48px rgba(0, 0, 0, .6), 0 4px 12px rgba(0, 0, 0, .3);
+}
+
+/* Topbar dark override (it has a hardcoded rgba white) */
+[data-theme="dark"] .topbar {
+  background: rgba(20, 20, 20, .94);
+}
+
+/* Tab hover dark */
+[data-theme="dark"] .tab:hover {
+  background: #2a2a2a;
+  color: var(--text-soft);
+}
+
+/* Inputs dark — override hardcoded #fff background */
+[data-theme="dark"] input,
+[data-theme="dark"] select,
+[data-theme="dark"] textarea {
+  color-scheme: dark;
+}
+
+/* Toggle checkbox dark fix */
+[data-theme="dark"] .toggle-check .toggle-box {
+  background: #2a2a2a !important;
+}
+
+/* Period summary gradient tiles dark */
+[data-theme="dark"] .period-summary .ps-blue  { background: linear-gradient(135deg, #172035, #1a1a1a) !important; }
+[data-theme="dark"] .period-summary .ps-amber { background: linear-gradient(135deg, #2a1f0a, #1a1a1a) !important; }
+[data-theme="dark"] .period-summary .ps-green { background: linear-gradient(135deg, #0f2a1a, #1a1a1a) !important; }
+[data-theme="dark"] .period-summary .ps-purple{ background: linear-gradient(135deg, #1e1535, #1a1a1a) !important; }
+[data-theme="dark"] .period-summary .ps-cyan  { background: linear-gradient(135deg, #0a2535, #1a1a1a) !important; }
+[data-theme="dark"] .period-summary .ps-rose  { background: linear-gradient(135deg, #2a0f0f, #1a1a1a) !important; }
+
+/* Employee base select dark */
+[data-theme="dark"] #emp-base {
+  background: var(--surface);
+}
+
+/* Pay period dropdown dark */
+[data-theme="dark"] #pp-emp {
+  background: var(--blue-bg);
+  color: var(--blue);
+}
+
+/* Export btn icon dark */
+[data-theme="dark"] .export-btn-icon {
+  background: #e0e0e0;
+  color: #111;
+}
+
+/* Auth page dark */
+[data-theme="dark"] .auth-body {
+  background: linear-gradient(135deg, #0f0f0f 0%, #1a1a1a 100%);
+}
+[data-theme="dark"] .auth-form input {
+  background: var(--surface-2);
+}
+[data-theme="dark"] .auth-form input:focus {
+  background: var(--surface);
+  border-color: var(--blue);
+  box-shadow: 0 0 0 3px rgba(96, 165, 250, .12);
+}
+
+/* Confirm modal icon dark */
+[data-theme="dark"] .confirm-icon {
+  background: #2a1010;
+  border-color: #5a1a1a;
+}
+
+/* Rate chip dark */
+[data-theme="dark"] .rate-chip {
+  background: var(--blue-bg);
+  border-color: var(--blue-border);
+  color: var(--blue);
+}
+
+/* Empty state dark */
+[data-theme="dark"] .empty-state {
+  background: linear-gradient(180deg, var(--surface-2), transparent);
+}
+
+/* Date range preview dark */
+[data-theme="dark"] .dr-preview--ok {
+  background: var(--green-bg);
+  border-color: var(--green-border);
+  color: var(--green);
+}
+[data-theme="dark"] .dr-preview--ok strong { color: var(--green); }
+[data-theme="dark"] .dr-preview--warn {
+  background: #2a1f0a;
+  border-color: #78350f;
+  color: #fbbf24;
+}
+
+/* Dark mode toggle button */
+.theme-toggle {
+  width: 36px;
+  height: 36px;
+  border: 1px solid var(--border);
+  border-radius: 50%;
+  background: var(--surface-2);
+  color: var(--text-dim);
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  transition: all .18s ease;
+  flex-shrink: 0;
+}
+.theme-toggle:hover {
+  background: var(--surface-3);
+  color: var(--text);
+  border-color: var(--border-hi);
+}
+.theme-toggle i { width: 16px; height: 16px; }
+
+/* Smooth theme transition on everything */
+*, *::before, *::after {
+  transition-property: background-color, border-color, color, box-shadow;
+  transition-duration: .2s;
+  transition-timing-function: ease;
+}
+/* But don't slow down transforms/opacity (animations, hovers) */
+.btn, .tab, .kpi, .list-item, .entry, .modal-content, .floating-net-pay {
+  transition: background-color .2s ease, border-color .2s ease, color .2s ease,
+              box-shadow .2s ease, transform .18s ease, opacity .25s ease;
+}
+
 /* ── RESET ── */
 *,
 *::before,

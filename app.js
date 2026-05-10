@@ -123,7 +123,36 @@ async function loadAll() {
   }));
 }
 
-// =============== TABS ===============
+// =============== THEME ===============
+function applyTheme(dark) {
+  document.documentElement.setAttribute("data-theme", dark ? "dark" : "light");
+  const btn = document.getElementById("theme-toggle-btn");
+  if (btn) {
+    btn.innerHTML = dark
+      ? '<i data-lucide="sun"></i>'
+      : '<i data-lucide="moon"></i>';
+    btn.title = dark ? "Switch to light mode" : "Switch to dark mode";
+    lucide.createIcons();
+  }
+}
+
+function toggleTheme() {
+  const isDark = document.documentElement.getAttribute("data-theme") === "dark";
+  const next = !isDark;
+  localStorage.setItem("techtune-theme", next ? "dark" : "light");
+  applyTheme(next);
+  // Re-render charts so they pick up the new palette
+  const dashActive = document.getElementById("view-dashboard")?.classList.contains("active");
+  if (dashActive) renderDashboard();
+}
+
+// Apply saved theme immediately (before any render)
+(function() {
+  const saved = localStorage.getItem("techtune-theme");
+  if (saved === "dark") document.documentElement.setAttribute("data-theme", "dark");
+})();
+
+
 document.querySelectorAll(".tab").forEach(t => {
   t.onclick = () => {
     document.querySelectorAll(".tab").forEach(x => x.classList.remove("active"));
@@ -881,23 +910,31 @@ function renderDashboard() {
 
   if (chartBar) chartBar.destroy();
   if (chartPie) chartPie.destroy();
-  Chart.defaults.color = '#999999';
+  const isDark = document.documentElement.getAttribute("data-theme") === "dark";
+  Chart.defaults.color = isDark ? '#666666' : '#999999';
   Chart.defaults.font.family = "'Plus Jakarta Sans', sans-serif";
 
   const accentColors = ['#2563eb', '#16a34a', '#d97706', '#dc2626', '#7c3aed', '#0891b2'];
+  const gridColor = isDark ? 'rgba(255,255,255,.06)' : 'rgba(0,0,0,.05)';
+  const tooltipBg = isDark ? '#1a1a1a' : '#fff';
+  const tooltipTitle = isDark ? '#e0e0e0' : '#111';
+  const tooltipBody = isDark ? '#888' : '#666';
+  const tooltipBorder = isDark ? 'rgba(255,255,255,.1)' : 'rgba(0,0,0,.1)';
+  const tickColor = isDark ? '#555' : '#999';
+
   chartBar = new Chart(document.getElementById("chart-bar"), {
     type: "bar",
     data: { labels: Object.keys(perEmp), datasets: [{ label: "Net Pay", data: Object.values(perEmp), backgroundColor: Object.keys(perEmp).map((_, i) => accentColors[i % accentColors.length]), borderRadius: 8, borderSkipped: false }] },
     options: { responsive: true, maintainAspectRatio: false,
-      plugins: { legend: { display: false }, tooltip: { backgroundColor: '#fff', borderColor: 'rgba(0,0,0,.1)', borderWidth: 1, titleColor: '#111', bodyColor: '#666', padding: 12, callbacks: { label: ctx => ' ₱' + ctx.parsed.y.toLocaleString('en-PH', { minimumFractionDigits: 2 }) } } },
-      scales: { x: { grid: { display: false }, border: { display: false }, ticks: { color: '#999', font: { size: 11 } } }, y: { grid: { color: 'rgba(0,0,0,.05)' }, border: { display: false }, ticks: { color: '#999', font: { size: 11 }, callback: v => '₱' + (v / 1000).toFixed(0) + 'k' } } } }
+      plugins: { legend: { display: false }, tooltip: { backgroundColor: tooltipBg, borderColor: tooltipBorder, borderWidth: 1, titleColor: tooltipTitle, bodyColor: tooltipBody, padding: 12, callbacks: { label: ctx => ' ₱' + ctx.parsed.y.toLocaleString('en-PH', { minimumFractionDigits: 2 }) } } },
+      scales: { x: { grid: { display: false }, border: { display: false }, ticks: { color: tickColor, font: { size: 11 } } }, y: { grid: { color: gridColor }, border: { display: false }, ticks: { color: tickColor, font: { size: 11 }, callback: v => '₱' + (v / 1000).toFixed(0) + 'k' } } } }
   });
   chartPie = new Chart(document.getElementById("chart-pie"), {
     type: "doughnut",
-    data: { labels: Object.keys(breakdown), datasets: [{ data: Object.values(breakdown), backgroundColor: accentColors, borderColor: '#fff', borderWidth: 3, hoverOffset: 6 }] },
+    data: { labels: Object.keys(breakdown), datasets: [{ data: Object.values(breakdown), backgroundColor: accentColors, borderColor: isDark ? '#1a1a1a' : '#fff', borderWidth: 3, hoverOffset: 6 }] },
     options: { responsive: true, maintainAspectRatio: false, cutout: '68%',
-      plugins: { legend: { position: 'right', labels: { color: '#777', font: { size: 11 }, boxWidth: 10, boxHeight: 10, borderRadius: 3, padding: 14, usePointStyle: true, pointStyle: 'rectRounded' } },
-        tooltip: { backgroundColor: '#fff', borderColor: 'rgba(0,0,0,.1)', borderWidth: 1, titleColor: '#111', bodyColor: '#666', padding: 12, callbacks: { label: ctx => ' ₱' + ctx.parsed.toLocaleString('en-PH', { minimumFractionDigits: 2 }) } } } }
+      plugins: { legend: { position: 'right', labels: { color: isDark ? '#777' : '#777', font: { size: 11 }, boxWidth: 10, boxHeight: 10, borderRadius: 3, padding: 14, usePointStyle: true, pointStyle: 'rectRounded' } },
+        tooltip: { backgroundColor: tooltipBg, borderColor: tooltipBorder, borderWidth: 1, titleColor: tooltipTitle, bodyColor: tooltipBody, padding: 12, callbacks: { label: ctx => ' ₱' + ctx.parsed.toLocaleString('en-PH', { minimumFractionDigits: 2 }) } } } }
   });
 
   renderEarningsHistory();
@@ -943,6 +980,13 @@ function renderEarningsHistory() {
   if (chartLine) chartLine.destroy();
   const labels = empPeriods.map(p => p.pay_date || p.start_date);
   const netData = empPeriods.map(p => calcPeriod(p).net);
+  const isDarkLine = document.documentElement.getAttribute("data-theme") === "dark";
+  const gridColorL = isDarkLine ? 'rgba(255,255,255,.06)' : 'rgba(0,0,0,.05)';
+  const tickColorL = isDarkLine ? '#555' : '#999';
+  const tooltipBgL = isDarkLine ? '#1a1a1a' : '#fff';
+  const tooltipTitleL = isDarkLine ? '#e0e0e0' : '#111';
+  const tooltipBodyL = isDarkLine ? '#888' : '#666';
+  const tooltipBorderL = isDarkLine ? 'rgba(255,255,255,.1)' : 'rgba(0,0,0,.1)';
   chartLine = new Chart(document.getElementById("chart-line"), {
     type: "line",
     data: {
@@ -951,7 +995,7 @@ function renderEarningsHistory() {
         label: "Net Pay",
         data: netData,
         borderColor: '#2563eb',
-        backgroundColor: 'rgba(37,99,235,0.08)',
+        backgroundColor: isDarkLine ? 'rgba(37,99,235,0.15)' : 'rgba(37,99,235,0.08)',
         pointBackgroundColor: '#2563eb',
         pointRadius: 5,
         pointHoverRadius: 7,
@@ -964,11 +1008,11 @@ function renderEarningsHistory() {
       responsive: true, maintainAspectRatio: false,
       plugins: {
         legend: { display: false },
-        tooltip: { backgroundColor: '#fff', borderColor: 'rgba(0,0,0,.1)', borderWidth: 1, titleColor: '#111', bodyColor: '#666', padding: 12, callbacks: { label: ctx => ' ₱' + ctx.parsed.y.toLocaleString('en-PH', { minimumFractionDigits: 2 }) } }
+        tooltip: { backgroundColor: tooltipBgL, borderColor: tooltipBorderL, borderWidth: 1, titleColor: tooltipTitleL, bodyColor: tooltipBodyL, padding: 12, callbacks: { label: ctx => ' ₱' + ctx.parsed.y.toLocaleString('en-PH', { minimumFractionDigits: 2 }) } }
       },
       scales: {
-        x: { grid: { display: false }, border: { display: false }, ticks: { color: '#999', font: { size: 10 }, maxRotation: 45 } },
-        y: { grid: { color: 'rgba(0,0,0,.05)' }, border: { display: false }, ticks: { color: '#999', font: { size: 11 }, callback: v => '₱' + (v / 1000).toFixed(0) + 'k' } }
+        x: { grid: { display: false }, border: { display: false }, ticks: { color: tickColorL, font: { size: 10 }, maxRotation: 45 } },
+        y: { grid: { color: gridColorL }, border: { display: false }, ticks: { color: tickColorL, font: { size: 11 }, callback: v => '₱' + (v / 1000).toFixed(0) + 'k' } }
       }
     }
   });
@@ -1477,6 +1521,8 @@ async function requireAuth() {
 (async () => {
   const session = await requireAuth();
   if (!session) return;
+  // Sync theme toggle icon with persisted preference
+  applyTheme(localStorage.getItem("techtune-theme") === "dark");
   toast("Connecting to Supabase…");
   try {
     await loadAll();
