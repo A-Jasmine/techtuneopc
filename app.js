@@ -76,6 +76,38 @@ function parseUnitsList(e) {
   return [];
 }
 
+// Vehicle lists: { sedan: [{qty,div},...], mpv: [...], sunroof: [...], scrap: [...], tubes: [...] }
+// Stored as JSON string in entry.vehicle_lists
+const VEHICLE_TYPES = ["sedan", "mpv", "sunroof", "scrap", "tubes"];
+const VEHICLE_LABELS = { sedan: "Sedan/SUV", mpv: "MPV", sunroof: "Sunroof", scrap: "Scrapping", tubes: "Tubes" };
+
+function parseVehicleLists(e) {
+  let parsed = null;
+  if (e.vehicle_lists && typeof e.vehicle_lists === "object" && !Array.isArray(e.vehicle_lists)) {
+    parsed = e.vehicle_lists;
+  } else if (typeof e.vehicle_lists === "string" && e.vehicle_lists) {
+    try { parsed = JSON.parse(e.vehicle_lists); } catch (ex) {}
+  }
+  if (!parsed) parsed = {};
+  // For each type, ensure it's an array; seed from legacy scalar fields if empty
+  VEHICLE_TYPES.forEach(t => {
+    if (!Array.isArray(parsed[t]) || parsed[t].length === 0) {
+      const legacyQtyKey = t === "scrap" ? "scrapping_qty" : t + "_qty";
+      const legacyDivKey = t === "scrap" ? "scrap_div" : t + "_div";
+      const legacyQty = +e[legacyQtyKey] || 0;
+      const legacyDiv = +e[legacyDivKey] || 1;
+      // Only seed a row if there's actual legacy data, otherwise empty array
+      parsed[t] = legacyQty > 0 ? [{ qty: legacyQty, div: legacyDiv }] : [];
+    }
+  });
+  return parsed;
+}
+
+// Sum all rows for a vehicle type given its rate
+function sumVehicleRows(rows, rate, globalDiv) {
+  return (rows || []).reduce((s, row) => s + round2((+row.qty || 0) * rate / safeDiv(+row.div || globalDiv)), 0);
+}
+
 function getBrandRates(brandKey) {
   const cr = COMMISSION_RATES;
   if (brandKey && cr[brandKey]) return cr[brandKey];
@@ -88,11 +120,9 @@ function getBrandRates(brandKey) {
 function calcEntry(e, baseRate) {
   const r = getBrandRates(e.brand);
   const globalDiv = safeDiv(e.divide_by || 1);
-  const sedanDiv = safeDiv(e.sedan_div || globalDiv);
-  const mpvDiv = safeDiv(e.mpv_div || globalDiv);
-  const sunroofDiv = safeDiv(e.sunroof_div || globalDiv);
-  const scrapDiv = safeDiv(e.scrap_div || globalDiv);
-  const tubesDiv = safeDiv(e.tubes_div || globalDiv);
+
+  // Vehicle lists (multi-row dynamic fields)
+  const vl = parseVehicleLists(e);
 
   // Units list: each row has qty and div, rate comes from brand's units_rate
   const unitsList = parseUnitsList(e);
@@ -101,11 +131,11 @@ function calcEntry(e, baseRate) {
   }, 0);
 
   const commission = round2(
-    (e.sedan_qty || 0) * r.sedan / sedanDiv +
-    (e.mpv_qty || 0) * r.mpv / mpvDiv +
-    (e.sunroof_qty || 0) * r.sunroof / sunroofDiv +
-    (e.scrapping_qty || 0) * (r.scrap || 0) / scrapDiv +
-    (e.tubes_qty || 0) * TUBE_RATE / tubesDiv +
+    sumVehicleRows(vl.sedan, r.sedan || 0, globalDiv) +
+    sumVehicleRows(vl.mpv, r.mpv || 0, globalDiv) +
+    sumVehicleRows(vl.sunroof, r.sunroof || 0, globalDiv) +
+    sumVehicleRows(vl.scrap, r.scrap || 0, globalDiv) +
+    sumVehicleRows(vl.tubes, TUBE_RATE, globalDiv) +
     unitsCommission
   );
   const otHrs = (+e.ot_hours || 0) + (+e.ot_minutes || 0) / 60;
@@ -548,6 +578,7 @@ async function addEntry(pid) {
     scrapping_qty: DEFAULT_UNITS().scrapping_qty || 0,
     tubes_qty: DEFAULT_UNITS().tubes_qty || 0,
     units_list: JSON.stringify([]),
+    vehicle_lists: JSON.stringify({ sedan: [], mpv: [], sunroof: [], scrap: [], tubes: [] }),
     divide_by: 1,
     sedan_div: 1, mpv_div: 1, sunroof_div: 1, scrap_div: 1, tubes_div: 1,
     gas_allowance: 0, is_holiday: false, is_offset: false, is_halfday: false,
@@ -594,6 +625,11 @@ async function updateEntry(pid, eid, key, val) {
     const serialized = JSON.stringify(val);
     const { error } = await sb.from('entries').update({ units_list: serialized }).eq('id', eid);
     if (error) toast("Save failed: " + error.message);
+  } else if (key === "vehicle_lists") {
+    e.vehicle_lists = val;
+    const serialized = JSON.stringify(val);
+    const { error } = await sb.from('entries').update({ vehicle_lists: serialized }).eq('id', eid);
+    if (error) toast("Save failed: " + error.message);
   } else {
     e[key] = val;
     const { error } = await sb.from('entries').update({ [key]: val }).eq('id', eid);
@@ -627,6 +663,74 @@ function stepField(pid, eid, key, delta, btn) {
   const newVal = Math.max(0, (+inp.value || 0) + delta);
   inp.value = newVal;
   updateEntry(pid, eid, key, newVal);
+}
+
+// ── Vehicle Lists (dynamic multi-row per vehicle type) ──
+function saveVehicleLists(pid, eid, vl) {
+  const p = state.periods.find(x => x.id === pid);
+  const e = p.entries.find(x => x.id === eid);
+  e.vehicle_lists = vl;
+  const serialized = JSON.stringify(vl);
+  sb.from('entries').update({ vehicle_lists: serialized }).eq('id', eid)
+    .then(({ error }) => { if (error) toast("Save failed: " + error.message); });
+  updateEntryTotals(pid, eid);
+}
+function addVehicleRow(pid, eid, type) {
+  const p = state.periods.find(x => x.id === pid);
+  const e = p.entries.find(x => x.id === eid);
+  const vl = parseVehicleLists(e);
+  vl[type].push({ qty: 0, div: 1 });
+  saveVehicleLists(pid, eid, vl);
+  renderVehicleListUI(pid, eid, type);
+}
+function removeVehicleRow(pid, eid, type, idx) {
+  const p = state.periods.find(x => x.id === pid);
+  const e = p.entries.find(x => x.id === eid);
+  const vl = parseVehicleLists(e);
+  vl[type].splice(idx, 1);
+  saveVehicleLists(pid, eid, vl);
+  renderVehicleListUI(pid, eid, type);
+}
+function updateVehicleRow(pid, eid, type, idx, field, val) {
+  const p = state.periods.find(x => x.id === pid);
+  const e = p.entries.find(x => x.id === eid);
+  const vl = parseVehicleLists(e);
+  if (!vl[type] || !vl[type][idx]) return;
+  vl[type][idx][field] = field === "div" ? (+val || 1) : (+val || 0);
+  saveVehicleLists(pid, eid, vl);
+}
+function renderVehicleListUI(pid, eid, type) {
+  const p = state.periods.find(x => x.id === pid);
+  const e = p.entries.find(x => x.id === eid);
+  const wrap = document.getElementById(`vlist-${eid}-${type}`);
+  if (!wrap) return;
+  const vl = parseVehicleLists(e);
+  const rows = vl[type] || [];
+  const r = getBrandRates(e.brand);
+  const rateMap = { sedan: r.sedan || 0, mpv: r.mpv || 0, sunroof: r.sunroof || 0, scrap: r.scrap || 0, tubes: TUBE_RATE };
+  const rate = rateMap[type] || 0;
+  const label = VEHICLE_LABELS[type] || type;
+  const isOffsite = (e.holiday_type || (e.is_holiday ? "onsite" : "none")) === "offsite";
+  const dis = isOffsite ? "disabled" : "";
+
+  wrap.innerHTML = rows.map((row, i) => {
+    const divOpts = Array.from({length:10},(_,k)=>k+1).map(n=>`<option value="${n}" ${(+row.div||1)===n?"selected":""}>${String.fromCharCode(247)}${n}</option>`).join("");
+    const isFirst = i === 0;
+    return `
+    <div class="vlist-row" style="display:grid;grid-template-columns:1fr 90px 28px;gap:6px;align-items:end;${isFirst ? '' : 'margin-top:6px'}">
+      <label style="margin:0;gap:3px">
+        ${isFirst ? `<span style="font-size:10px;font-weight:700;letter-spacing:.6px;color:var(--text-dim)">${label} <span style="font-weight:400;color:var(--text-dim)">(₱${rate}/ea)</span></span>` : `<span style="font-size:10px;color:var(--text-dim);font-style:italic">+ more</span>`}
+        <input type="number" min="0" value="${row.qty || 0}" ${dis} onchange="updateVehicleRow('${pid}','${eid}','${type}',${i},'qty',this.value)">
+      </label>
+      <div style="display:flex;flex-direction:column;gap:3px">
+        ${isFirst ? `<span style="font-size:10px;font-weight:700;letter-spacing:.6px;color:var(--text-dim)">Workers</span>` : `<span style="font-size:10px;opacity:0">w</span>`}
+        <select style="font-size:12px" title="Divide by" ${dis} onchange="updateVehicleRow('${pid}','${eid}','${type}',${i},'div',this.value)">${divOpts}</select>
+      </div>
+      <button type="button" class="icon-btn" style="width:26px;height:34px;padding:0;color:var(--danger);border:none;background:none;align-self:end;margin-bottom:1px" title="Remove row" ${dis} onclick="removeVehicleRow('${pid}','${eid}','${type}',${i})"><i data-lucide="x"></i></button>
+    </div>`;
+  }).join("") + `
+  <button type="button" class="btn" style="width:100%;margin-top:${rows.length?'8':'0'}px;font-size:11px;padding:4px 8px" ${dis} onclick="addVehicleRow('${pid}','${eid}','${type}')"><i data-lucide="plus"></i> Add ${label}</button>`;
+  lucide.createIcons();
 }
 
 // Units list helpers
@@ -682,10 +786,7 @@ function renderUnitsListUI(pid, eid) {
       </label>
       <div class="div-row"><span class="div-label">Workers</span>
         <select style="flex:1;font-size:12px" title="Divide by (# of workers)" ${disAttr} onchange="updateUnitsRow('${pid}','${eid}',${i},'div',this.value)">
-          <option value="1" ${(+u.div || 1) === 1 ? "selected" : ""}>÷1</option>
-          <option value="2" ${(+u.div || 1) === 2 ? "selected" : ""}>÷2</option>
-          <option value="3" ${(+u.div || 1) === 3 ? "selected" : ""}>÷3</option>
-          <option value="4" ${(+u.div || 1) === 4 ? "selected" : ""}>÷4</option>
+          ${Array.from({length:10},(_,k)=>k+1).map(n=>`<option value="${n}" ${(+u.div||1)===n?"selected":""}>${String.fromCharCode(247)}${n}</option>`).join("")}
         </select>
       </div>
     </div>`).join("") + `
@@ -734,13 +835,12 @@ function renderEntries(pid) {
           : holidayType === "special" ? (e.is_halfday ? `Special Holiday · Half day · ₱${(baseRate / 2).toLocaleString()} + ${Math.round(baseRate * 0.3)}` : `Special Holiday · ₱${baseRate.toLocaleString()} + ₱${Math.round(baseRate * 0.3)} bonus`)
             : e.is_halfday ? `Half day · ₱${(baseRate / 2).toLocaleString()}` : `Full day · ₱${baseRate.toLocaleString()}`;
 
-    // Per-field divide helpers
-    const divSel = (field, val) => `<select style="width:80px;font-size:12px" onchange="updateEntry('${pid}','${e.id}','${field}',this.value)" title="Divide by (# of workers)">
-      <option value="1" ${(val || 1) === 1 ? "selected" : ""}>÷1</option>
-      <option value="2" ${(val || 1) === 2 ? "selected" : ""}>÷2</option>
-      <option value="3" ${(val || 1) === 3 ? "selected" : ""}>÷3</option>
-      <option value="4" ${(val || 1) === 4 ? "selected" : ""}>÷4</option>
-    </select>`;
+    // Per-field divide helpers (÷1 – ÷10)
+    const divSel = (field, val) => {
+      const cur = val || 1;
+      const opts = Array.from({length:10},(_,i)=>i+1).map(n=>`<option value="${n}" ${cur===n?"selected":""}>${String.fromCharCode(247)}${n}</option>`).join("");
+      return `<select style="width:80px;font-size:12px" onchange="updateEntry('${pid}','${e.id}','${field}',this.value)" title="Divide by (# of workers)">${opts}</select>`;
+    };
 
     // Brand rate hint
     const r = getBrandRates(e.brand);
@@ -809,26 +909,11 @@ function renderEntries(pid) {
           ${brandHint}
         </div>
         <div class="commission-grid">
-          <div class="comm-field-wrap">
-            <label>Sedan/SUV Qty<input type="number" min="0" value="${e.sedan_qty || 0}" ${isOffsite ? "disabled" : ""} onchange="updateEntry('${pid}','${e.id}','sedan_qty',this.value)"></label>
-            <div class="div-row"><span class="div-label">Workers</span>${divSel('sedan_div', e.sedan_div || 1)}</div>
-          </div>
-          <div class="comm-field-wrap">
-            <label>MPV Qty<input type="number" min="0" value="${e.mpv_qty || 0}" ${isOffsite ? "disabled" : ""} onchange="updateEntry('${pid}','${e.id}','mpv_qty',this.value)"></label>
-            <div class="div-row"><span class="div-label">Workers</span>${divSel('mpv_div', e.mpv_div || 1)}</div>
-          </div>
-          <div class="comm-field-wrap">
-            <label>Sunroof Qty<input type="number" min="0" value="${e.sunroof_qty || 0}" ${isOffsite ? "disabled" : ""} onchange="updateEntry('${pid}','${e.id}','sunroof_qty',this.value)"></label>
-            <div class="div-row"><span class="div-label">Workers</span>${divSel('sunroof_div', e.sunroof_div || 1)}</div>
-          </div>
-          <div class="comm-field-wrap">
-            <label>Scrapping Qty<input type="number" min="0" value="${e.scrapping_qty || 0}" ${isOffsite ? "disabled" : ""} onchange="updateEntry('${pid}','${e.id}','scrapping_qty',this.value)"></label>
-            <div class="div-row"><span class="div-label">Workers</span>${divSel('scrap_div', e.scrap_div || 1)}</div>
-          </div>
-          <div class="comm-field-wrap">
-            <label>Tubes Qty<input type="number" min="0" value="${e.tubes_qty || 0}" ${isOffsite ? "disabled" : ""} onchange="updateEntry('${pid}','${e.id}','tubes_qty',this.value)"></label>
-            <div class="div-row"><span class="div-label">Workers</span>${divSel('tubes_div', e.tubes_div || 1)}</div>
-          </div>
+          <div class="comm-field-wrap" id="vlist-${e.id}-sedan"><!-- rendered by renderVehicleListUI --></div>
+          <div class="comm-field-wrap" id="vlist-${e.id}-mpv"><!-- rendered by renderVehicleListUI --></div>
+          <div class="comm-field-wrap" id="vlist-${e.id}-sunroof"><!-- rendered by renderVehicleListUI --></div>
+          <div class="comm-field-wrap" id="vlist-${e.id}-scrap"><!-- rendered by renderVehicleListUI --></div>
+          <div class="comm-field-wrap" id="vlist-${e.id}-tubes"><!-- rendered by renderVehicleListUI --></div>
           <div class="comm-field-wrap comm-field-wrap--units" id="units-list-${e.id}">
             <!-- rendered by renderUnitsListUI -->
           </div>
@@ -848,8 +933,11 @@ function renderEntries(pid) {
     </div>`;
   }).join("");
   lucide.createIcons();
-  // Populate dynamic units lists for each entry
-  p.entries.forEach(e => renderUnitsListUI(pid, e.id));
+  // Populate dynamic vehicle lists and units lists for each entry
+  p.entries.forEach(e => {
+    VEHICLE_TYPES.forEach(t => renderVehicleListUI(pid, e.id, t));
+    renderUnitsListUI(pid, e.id);
+  });
 }
 
 // Handle holiday type change — syncs legacy is_holiday flag too
@@ -1524,11 +1612,21 @@ function exportPDF(pid) {
       const type = e.is_offset ? "OFFSET" : holidayType === "offsite" ? "HOL OFF" : holidayType === "onsite" ? "HOL ON" : holidayType === "special" ? "HOL SP" : e.is_halfday ? "HALF" : "FULL";
       const otH = +e.ot_hours || 0;
       const otM = +e.ot_minutes || 0;
-      // Show qty/div for each field e.g. "11" or "25÷2"
-      const qd = (qty, div) => { const q = qty || 0; const d = div || 1; return q ? (d > 1 ? `${q}÷${d}` : `${q}`) : "—"; };
+      // Show vehicle list summary: total qty across rows, with div notation if any row divides
+      const vl = parseVehicleLists(e);
+      const vSummary = (rows) => {
+        if (!rows || !rows.length) return "—";
+        const totalQty = rows.reduce((s, r) => s + (+r.qty || 0), 0);
+        if (!totalQty) return "—";
+        if (rows.length === 1) {
+          const d = +rows[0].div || 1;
+          return d > 1 ? `${totalQty}÷${d}` : `${totalQty}`;
+        }
+        return rows.filter(r => +r.qty > 0).map(r => { const d = +r.div||1; return d>1?`${r.qty}÷${d}`:String(r.qty); }).join("+") || "—";
+      };
       return [e.date, e.location || "—", to12h(e.time_in) || "—", to12h(e.time_out) || "—", type, (e.brand || "").toUpperCase(),
-      qd(e.sedan_qty, e.sedan_div), qd(e.mpv_qty, e.mpv_div), qd(e.sunroof_qty, e.sunroof_div),
-      qd(e.scrapping_qty, e.scrap_div), qd(e.tubes_qty, e.tubes_div),
+      vSummary(vl.sedan), vSummary(vl.mpv), vSummary(vl.sunroof),
+      vSummary(vl.scrap), vSummary(vl.tubes),
       otH || "—", otM || "—",
       fmt(c.commission), fmt(c.otPay), fmt(c.holiday), fmt(c.gas), fmt(c.total)];
     }),
