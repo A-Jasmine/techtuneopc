@@ -639,14 +639,11 @@ function renderUnitsListUI(pid, eid) {
   // We render the wrapper itself as the grid cell spanning container
   wrap.innerHTML = list.map((u, i) => `
     <div class="comm-field-wrap comm-field-wrap--unit-row">
-      <label style="flex:1">
-        <span style="display:flex;align-items:center;justify-content:space-between;gap:4px">
-          <span>Units Qty <span style="font-weight:400;font-size:10px;color:var(--text-dim)">(₱${(r.units_rate||0).toLocaleString()}/ea)</span></span>
-          <button type="button" class="icon-btn" style="width:20px;height:20px;padding:0;flex-shrink:0;color:var(--danger)" title="Remove row" ${disAttr} onclick="removeUnitsRow('${pid}','${eid}',${i})"><i data-lucide="x"></i></button>
-        </span>
-        <div style="display:flex;gap:6px;align-items:center;margin-top:4px">
-          <input type="text" placeholder="Description" value="${(u.desc||'').replace(/"/g,'&quot;')}" style="flex:1;min-width:0;font-size:12px" ${disAttr} onchange="updateUnitsRow('${pid}','${eid}',${i},'desc',this.value)">
-          <input type="number" min="0" value="${u.qty||0}" style="width:52px;text-align:center" ${disAttr} onchange="updateUnitsRow('${pid}','${eid}',${i},'qty',this.value)">
+      <label>
+        <span>Units Qty <span style="font-weight:400;font-size:10px;color:var(--text-dim)">(₱${(r.units_rate||0).toLocaleString()}/ea)</span></span>
+        <div style="display:flex;align-items:center;gap:4px">
+          <input type="number" min="0" value="${u.qty||0}" style="width:64px;text-align:center;padding:6px 8px;font-size:13px" ${disAttr} onchange="updateUnitsRow('${pid}','${eid}',${i},'qty',this.value)">
+          <button type="button" class="icon-btn" style="width:24px;height:24px;padding:0;flex-shrink:0;color:var(--danger)" title="Remove" ${disAttr} onclick="removeUnitsRow('${pid}','${eid}',${i})"><i data-lucide="x"></i></button>
         </div>
       </label>
       <div class="div-row"><span class="div-label">Workers</span>
