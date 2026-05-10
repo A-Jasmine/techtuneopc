@@ -94,6 +94,16 @@ function parseUnitsList(e) {
 // Stored as JSON string in entry.vehicle_lists
 const VEHICLE_TYPES = ["sedan", "mpv", "sunroof", "scrap", "tubes"];
 const VEHICLE_LABELS = { sedan: "Sedan/SUV", mpv: "MPV", sunroof: "Sunroof", scrap: "Scrapping", tubes: "Tubes" };
+// SVG icon paths for each vehicle type
+const VEHICLE_ICONS = {
+  sedan: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 17H3v-5l2.5-4.5A2 2 0 0 1 7.24 6h9.52a2 2 0 0 1 1.74 1.5L21 12v5h-2"/><circle cx="7.5" cy="17.5" r="1.5"/><circle cx="16.5" cy="17.5" r="1.5"/><path d="M5 12h14"/></svg>`,
+  mpv:   `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="7" width="20" height="10" rx="2"/><path d="M6 7V5a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v2"/><circle cx="7" cy="17" r="1"/><circle cx="17" cy="17" r="1"/><path d="M2 12h20"/></svg>`,
+  sunroof: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/></svg>`,
+  scrap:  `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>`,
+  tubes:  `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="2" x2="12" y2="22"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>`,
+  units:  `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>`,
+  custom: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>`
+};
 
 function parseVehicleLists(e) {
   let parsed = null;
@@ -742,44 +752,79 @@ function renderVehicleListUI(pid, eid, type) {
   const rateMap = { sedan: r.sedan || 0, mpv: r.mpv || 0, sunroof: r.sunroof || 0, scrap: r.scrap || 0, tubes: TUBE_RATE };
   const rate = rateMap[type] || 0;
   const label = VEHICLE_LABELS[type] || type;
+  const icon = VEHICLE_ICONS[type] || VEHICLE_ICONS.custom;
   const isOffsite = (e.holiday_type || (e.is_holiday ? "onsite" : "none")) === "offsite";
   const dis = isOffsite ? "disabled" : "";
+  const totalQty = rows.reduce((s, row) => s + (+row.qty || 0), 0);
+  const hasQty = totalQty > 0;
 
-  // Header row
-  const header = `
-    <div class="cf-header">
-      <span class="cf-label">${label}</span>
-      <span class="cf-rate">₱${rate}/ea</span>
-      <button type="button" class="cf-add-btn" title="Add another ${label}" ${dis} onclick="addVehicleRow('${pid}','${eid}','${type}')">
-        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-        Add
-      </button>
-    </div>`;
+  wrap.setAttribute("data-active", hasQty ? "1" : "0");
 
   const rowsHTML = rows.map((row, i) => {
-    const divOpts = Array.from({length:10},(_,k)=>k+1).map(n=>`<option value="${n}" ${(+row.div||1)===n?"selected":""}>${String.fromCharCode(247)}${n}</option>`).join("");
     const canRemove = !(i === 0 && rows.length === 1);
+    const divOpts = Array.from({length:10},(_,k)=>k+1).map(n=>`<option value="${n}" ${(+row.div||1)===n?"selected":""}>${String.fromCharCode(247)}${n}</option>`).join("");
     return `
-    <div class="cf-row">
-      <input class="cf-qty-input" type="number" min="0" value="${row.qty || 0}" placeholder="0" ${dis}
-        onchange="updateVehicleRow('${pid}','${eid}','${type}',${i},'qty',this.value)">
-      <div class="cf-divider-wrap">
+    <div class="cf-row${i > 0 ? " cf-row-extra" : ""}">
+      <div class="cf-stepper">
+        <button type="button" class="cf-step-btn cf-step-minus" ${dis} title="Decrease"
+          onclick="cfStepQty('${pid}','${eid}','${type}',${i},-1,this)">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8"><line x1="5" y1="12" x2="19" y2="12"/></svg>
+        </button>
+        <input class="cf-qty-input" type="number" min="0" value="${row.qty || 0}" placeholder="0" ${dis}
+          onchange="updateVehicleRow('${pid}','${eid}','${type}',${i},'qty',this.value);refreshCfCardState('${eid}','${type}')">
+        <button type="button" class="cf-step-btn cf-step-plus" ${dis} title="Increase"
+          onclick="cfStepQty('${pid}','${eid}','${type}',${i},1,this)">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+        </button>
+      </div>
+      <div class="cf-workers-col">
         <span class="cf-divider-label">÷ workers</span>
-        <select class="cf-divider-select" title="Divide by workers" ${dis}
+        <select class="cf-divider-select" ${dis}
           onchange="updateVehicleRow('${pid}','${eid}','${type}',${i},'div',this.value)">${divOpts}</select>
       </div>
       ${canRemove
-        ? `<button type="button" class="cf-remove-btn" title="Remove" ${dis}
+        ? `<button type="button" class="cf-remove-btn" title="Remove row" ${dis}
              onclick="removeVehicleRow('${pid}','${eid}','${type}',${i})">
-             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+             <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
            </button>`
-        : `<span class="cf-remove-placeholder"></span>`}
+        : ""}
     </div>`;
   }).join("");
 
-  wrap.innerHTML = header + rowsHTML;
+  wrap.innerHTML = `
+    <div class="cf-card-header">
+      <div class="cf-card-icon">${icon}</div>
+      <div class="cf-card-meta">
+        <span class="cf-label">${label}</span>
+        <span class="cf-rate">₱${rate.toLocaleString()}/ea</span>
+      </div>
+      <button type="button" class="cf-add-btn" ${dis} title="Add split row"
+        onclick="addVehicleRow('${pid}','${eid}','${type}')">
+        <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+        Split
+      </button>
+    </div>
+    <div class="cf-divider-line"></div>
+    <div class="cf-rows-wrap">${rowsHTML}</div>`;
   lucide.createIcons();
 }
+// Stepper helpers for cf cards
+function cfStepQty(pid, eid, type, idx, delta, btn) {
+  const wrap = btn.closest(".cf-row");
+  const inp = wrap.querySelector(".cf-qty-input");
+  const newVal = Math.max(0, (+inp.value || 0) + delta);
+  inp.value = newVal;
+  updateVehicleRow(pid, eid, type, idx, "qty", newVal);
+  refreshCfCardState(eid, type);
+}
+function refreshCfCardState(eid, type) {
+  const card = document.getElementById(`vlist-${eid}-${type}`);
+  if (!card) return;
+  const inputs = card.querySelectorAll(".cf-qty-input");
+  const totalQty = Array.from(inputs).reduce((s, inp) => s + (+inp.value || 0), 0);
+  card.setAttribute("data-active", totalQty > 0 ? "1" : "0");
+}
+
 // Renders all custom field vehicle-list UIs for an entry (when brand changes or entry loads)
 function renderCustomFieldListsUI(pid, eid) {
   const p = state.periods.find(x => x.id === pid);
@@ -787,47 +832,75 @@ function renderCustomFieldListsUI(pid, eid) {
   if (!e) return;
   const customFields = getCustomFields(e.brand);
   customFields.forEach(cf => {
-    // Ensure the wrapper exists; it may have been created in renderEntries HTML
     const wrap = document.getElementById(`vlist-${eid}-${cf.key}`);
     if (!wrap) return;
     const vl = parseVehicleLists(e);
     const rows = vl[cf.key] || [{ qty: 0, div: 1 }];
     const rate = cf.rate || 0;
     const label = cf.label || cf.key;
+    const icon = VEHICLE_ICONS.custom;
     const isOffsite = (e.holiday_type || (e.is_holiday ? "onsite" : "none")) === "offsite";
     const dis = isOffsite ? "disabled" : "";
-    const header = `
-      <div class="cf-header">
-        <span class="cf-label">${label}</span>
-        <span class="cf-rate">₱${rate}/ea</span>
-        <button type="button" class="cf-add-btn" title="Add row" ${dis}
-          onclick="addCustomFieldRow('${pid}','${eid}','${cf.key}')">
-          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>Add
-        </button>
-      </div>`;
+    const totalQty = rows.reduce((s, row) => s + (+row.qty || 0), 0);
+    wrap.setAttribute("data-active", totalQty > 0 ? "1" : "0");
     const rowsHTML = rows.map((row, i) => {
-      const divOpts = Array.from({length:10},(_,k)=>k+1).map(n=>`<option value="${n}" ${(+row.div||1)===n?"selected":""}>${String.fromCharCode(247)}${n}</option>`).join("");
       const canRemove = !(i === 0 && rows.length === 1);
+      const divOpts = Array.from({length:10},(_,k)=>k+1).map(n=>`<option value="${n}" ${(+row.div||1)===n?"selected":""}>${String.fromCharCode(247)}${n}</option>`).join("");
       return `
-      <div class="cf-row">
-        <input class="cf-qty-input" type="number" min="0" value="${row.qty||0}" placeholder="0" ${dis}
-          onchange="updateCustomFieldRow('${pid}','${eid}','${cf.key}',${i},'qty',this.value)">
-        <div class="cf-divider-wrap">
+      <div class="cf-row${i > 0 ? " cf-row-extra" : ""}">
+        <div class="cf-stepper">
+          <button type="button" class="cf-step-btn cf-step-minus" ${dis}
+            onclick="cfStepCustom('${pid}','${eid}','${cf.key}',${i},-1,this)">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8"><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          </button>
+          <input class="cf-qty-input" type="number" min="0" value="${row.qty||0}" placeholder="0" ${dis}
+            onchange="updateCustomFieldRow('${pid}','${eid}','${cf.key}',${i},'qty',this.value);refreshCfCustomState('${eid}','${cf.key}')">
+          <button type="button" class="cf-step-btn cf-step-plus" ${dis}
+            onclick="cfStepCustom('${pid}','${eid}','${cf.key}',${i},1,this)">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          </button>
+        </div>
+        <div class="cf-workers-col">
           <span class="cf-divider-label">÷ workers</span>
           <select class="cf-divider-select" ${dis}
             onchange="updateCustomFieldRow('${pid}','${eid}','${cf.key}',${i},'div',this.value)">${divOpts}</select>
         </div>
-        ${canRemove
-          ? `<button type="button" class="cf-remove-btn" ${dis}
-               onclick="removeCustomFieldRow('${pid}','${eid}','${cf.key}',${i})">
-               <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-             </button>`
-          : `<span class="cf-remove-placeholder"></span>`}
+        ${canRemove ? `<button type="button" class="cf-remove-btn" ${dis}
+            onclick="removeCustomFieldRow('${pid}','${eid}','${cf.key}',${i})">
+            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+          </button>` : ""}
       </div>`;
     }).join("");
-    wrap.innerHTML = header + rowsHTML;
+    wrap.innerHTML = `
+      <div class="cf-card-header">
+        <div class="cf-card-icon cf-card-icon--custom">${icon}</div>
+        <div class="cf-card-meta">
+          <span class="cf-label">${label}</span>
+          <span class="cf-rate">₱${rate.toLocaleString()}/ea</span>
+        </div>
+        <button type="button" class="cf-add-btn" ${dis} onclick="addCustomFieldRow('${pid}','${eid}','${cf.key}')">
+          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>Split
+        </button>
+      </div>
+      <div class="cf-divider-line"></div>
+      <div class="cf-rows-wrap">${rowsHTML}</div>`;
   });
   lucide.createIcons();
+}
+function cfStepCustom(pid, eid, cfKey, idx, delta, btn) {
+  const wrap = btn.closest(".cf-row");
+  const inp = wrap.querySelector(".cf-qty-input");
+  const newVal = Math.max(0, (+inp.value || 0) + delta);
+  inp.value = newVal;
+  updateCustomFieldRow(pid, eid, cfKey, idx, "qty", newVal);
+  refreshCfCustomState(eid, cfKey);
+}
+function refreshCfCustomState(eid, cfKey) {
+  const card = document.getElementById(`vlist-${eid}-${cfKey}`);
+  if (!card) return;
+  const inputs = card.querySelectorAll(".cf-qty-input");
+  const totalQty = Array.from(inputs).reduce((s, inp) => s + (+inp.value || 0), 0);
+  card.setAttribute("data-active", totalQty > 0 ? "1" : "0");
 }
 
 function addCustomFieldRow(pid, eid, cfKey) {
@@ -911,37 +984,68 @@ function renderUnitsListUI(pid, eid) {
     if (e2) { e2.units_list = displayList; }
   }
 
+  const totalUnitsQty = displayList.reduce((s, u) => s + (+u.qty || 0), 0);
+  wrap.setAttribute("data-active", totalUnitsQty > 0 ? "1" : "0");
   wrap.innerHTML = `
-    <div class="cf-header">
-      <span class="cf-label">Units Qty</span>
-      <span class="cf-rate">₱${(r.units_rate || 0).toLocaleString()}/ea</span>
-      <button type="button" class="cf-add-btn" title="Add another Unit" ${disAttr} onclick="addUnitsRow('${pid}','${eid}')">
-        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-        Add
+    <div class="cf-card-header">
+      <div class="cf-card-icon cf-card-icon--units">${VEHICLE_ICONS.units}</div>
+      <div class="cf-card-meta">
+        <span class="cf-label">Units Qty</span>
+        <span class="cf-rate">₱${(r.units_rate || 0).toLocaleString()}/ea</span>
+      </div>
+      <button type="button" class="cf-add-btn" ${disAttr} onclick="addUnitsRow('${pid}','${eid}')">
+        <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>Split
       </button>
     </div>
+    <div class="cf-divider-line"></div>
+    <div class="cf-rows-wrap">
     ${displayList.map((u, i) => {
       const canRemove = !(i === 0 && displayList.length === 1);
       return `
-      <div class="cf-row">
-        <input class="cf-qty-input" type="number" min="0" value="${u.qty || 0}" placeholder="0" ${disAttr}
-          onchange="updateUnitsRow('${pid}','${eid}',${i},'qty',this.value)">
-        <div class="cf-divider-wrap">
+      <div class="cf-row${i > 0 ? " cf-row-extra" : ""}">
+        <div class="cf-stepper">
+          <button type="button" class="cf-step-btn cf-step-minus" ${disAttr}
+            onclick="cfStepUnits('${pid}','${eid}',${i},-1,this)">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8"><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          </button>
+          <input class="cf-qty-input" type="number" min="0" value="${u.qty || 0}" placeholder="0" ${disAttr}
+            onchange="updateUnitsRow('${pid}','${eid}',${i},'qty',this.value);refreshCfUnitsState('${eid}')">
+          <button type="button" class="cf-step-btn cf-step-plus" ${disAttr}
+            onclick="cfStepUnits('${pid}','${eid}',${i},1,this)">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          </button>
+        </div>
+        <div class="cf-workers-col">
           <span class="cf-divider-label">÷ workers</span>
-          <select class="cf-divider-select" title="Divide by workers" ${disAttr}
+          <select class="cf-divider-select" ${disAttr}
             onchange="updateUnitsRow('${pid}','${eid}',${i},'div',this.value)">
             ${Array.from({length:10},(_,k)=>k+1).map(n=>`<option value="${n}" ${(+u.div||1)===n?"selected":""}>${String.fromCharCode(247)}${n}</option>`).join("")}
           </select>
         </div>
-        ${canRemove
-          ? `<button type="button" class="cf-remove-btn" title="Remove" ${disAttr}
-               onclick="removeUnitsRow('${pid}','${eid}',${i})">
-               <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-             </button>`
-          : `<span class="cf-remove-placeholder"></span>`}
+        ${canRemove ? `<button type="button" class="cf-remove-btn" ${disAttr}
+            onclick="removeUnitsRow('${pid}','${eid}',${i})">
+            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+          </button>` : ""}
       </div>`;
-    }).join("")}`;
+    }).join("")}
+    </div>`;
   lucide.createIcons();
+}
+function cfStepUnits(pid, eid, idx, delta, btn) {
+  const wrap = btn.closest(".cf-row");
+  const inp = wrap.querySelector(".cf-qty-input");
+  const newVal = Math.max(0, (+inp.value || 0) + delta);
+  inp.value = newVal;
+  updateUnitsRow(pid, eid, idx, "qty", newVal);
+  refreshCfUnitsState(eid);
+  updateEntryTotals(pid, eid);
+}
+function refreshCfUnitsState(eid) {
+  const card = document.getElementById(`units-list-${eid}`);
+  if (!card) return;
+  const inputs = card.querySelectorAll(".cf-qty-input");
+  const totalQty = Array.from(inputs).reduce((s, inp) => s + (+inp.value || 0), 0);
+  card.setAttribute("data-active", totalQty > 0 ? "1" : "0");
 }
 function updateEntryTotals(pid, eid) {
   const p = state.periods.find(x => x.id === pid);

@@ -2072,118 +2072,219 @@ textarea:focus {
    ══════════════════════════════════════════ */
 
 /* Outer grid — 6 equal columns that wrap on small screens */
+/* ═══════════════════════════════════════════════════════
+   COMMISSION GRID — Redesigned Card System
+   ═══════════════════════════════════════════════════════ */
+
 .commission-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
-  gap: 14px;
-  margin-top: 6px;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 12px;
+  margin-top: 8px;
 }
 
-/* Each vehicle / units card */
+/* ── Base card shell ── */
 .cf-card {
-  background: var(--surface-2);
-  border: 1px solid var(--border);
-  border-radius: 14px;
-  padding: 16px 16px 14px;
+  background: var(--surface);
+  border: 1.5px solid var(--border);
+  border-radius: 16px;
+  padding: 0;
   display: flex;
   flex-direction: column;
-  gap: 12px;
-  transition: border-color .18s, box-shadow .18s;
+  overflow: hidden;
+  transition: border-color .2s, box-shadow .2s, background .2s;
+  position: relative;
 }
 .cf-card:hover {
   border-color: var(--border-hi);
-  box-shadow: 0 2px 12px rgba(0,0,0,.06);
+  box-shadow: 0 4px 16px rgba(0,0,0,.07);
 }
 
-/* Card header row: label + rate badge + add button */
-.cf-header {
+/* ── Active state: card has qty > 0 ── */
+.cf-card[data-active="1"] {
+  border-color: var(--blue);
+  background: var(--blue-bg);
+  box-shadow: 0 0 0 3px rgba(37,99,235,.08), 0 4px 16px rgba(37,99,235,.06);
+}
+[data-theme="dark"] .cf-card[data-active="1"] {
+  background: rgba(37,99,235,.08);
+  border-color: var(--blue);
+  box-shadow: 0 0 0 3px rgba(37,99,235,.12);
+}
+
+/* ── Card header: icon + title + rate + add button ── */
+.cf-card-header {
   display: flex;
   align-items: center;
-  gap: 7px;
+  gap: 10px;
+  padding: 12px 14px 10px;
+}
+.cf-card-icon {
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  background: var(--surface-2);
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  color: var(--text-soft);
+  transition: background .2s, color .2s;
+}
+.cf-card[data-active="1"] .cf-card-icon {
+  background: var(--blue);
+  color: #fff;
+}
+.cf-card-icon--custom { background: var(--amber-bg); color: var(--amber); }
+.cf-card[data-active="1"] .cf-card-icon--custom { background: var(--blue); color: #fff; }
+.cf-card-icon--units { background: var(--green-bg); color: var(--green); }
+.cf-card[data-active="1"] .cf-card-icon--units { background: var(--blue); color: #fff; }
+
+.cf-card-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1;
+  min-width: 0;
 }
 .cf-label {
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 700;
-  letter-spacing: .5px;
+  letter-spacing: .2px;
   color: var(--text);
   white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .cf-rate {
-  font-size: 10px;
+  font-size: 11px;
   font-weight: 500;
   color: var(--text-dim);
-  background: var(--surface-3);
-  border: 1px solid var(--border);
-  border-radius: 20px;
-  padding: 2px 8px;
   white-space: nowrap;
 }
+.cf-card[data-active="1"] .cf-rate {
+  color: var(--blue);
+  font-weight: 600;
+}
+
+/* ── "Split" (add row) button — solid blue ── */
 .cf-add-btn {
   margin-left: auto;
   display: inline-flex;
   align-items: center;
-  gap: 4px;
-  padding: 3px 10px;
+  gap: 3px;
+  padding: 4px 10px;
   border-radius: 20px;
-  border: 1.5px solid var(--blue-border);
-  background: var(--blue-bg);
-  color: var(--blue);
+  border: none;
+  background: var(--blue);
+  color: #fff;
   font-size: 10px;
   font-weight: 700;
   cursor: pointer;
-  transition: all .15s ease;
+  transition: opacity .15s, transform .1s;
   white-space: nowrap;
   letter-spacing: .3px;
   flex-shrink: 0;
 }
-.cf-add-btn:hover {
-  background: var(--blue);
-  color: #fff;
-  border-color: var(--blue);
+.cf-add-btn:hover { opacity: .85; transform: scale(1.04); }
+.cf-add-btn:active { transform: scale(.97); }
+.cf-add-btn:disabled { opacity: .35; cursor: not-allowed; transform: none; }
+
+/* ── Thin divider between header and rows ── */
+.cf-divider-line {
+  height: 1px;
+  background: var(--border);
+  margin: 0 14px;
+  opacity: .7;
 }
-.cf-add-btn:disabled {
-  opacity: .4;
-  cursor: not-allowed;
+.cf-card[data-active="1"] .cf-divider-line {
+  background: var(--blue);
+  opacity: .18;
 }
 
-/* Each quantity + workers row */
+/* ── Rows container ── */
+.cf-rows-wrap {
+  padding: 10px 14px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+/* ── Individual qty + workers row ── */
 .cf-row {
   display: flex;
   align-items: center;
-  gap: 10px;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: 10px;
-  padding: 8px 12px;
+  gap: 8px;
 }
-.cf-row + .cf-row {
-  border-style: dashed;
+.cf-row-extra {
+  padding-top: 8px;
+  border-top: 1px dashed var(--border);
 }
 
-/* Big quantity input */
-.cf-qty-input {
-  width: 60px !important;
+/* ── Stepper control: [−] qty [+] ── */
+.cf-stepper {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  background: var(--surface-2);
+  border: 1.5px solid var(--border);
+  border-radius: 10px;
+  overflow: hidden;
   flex-shrink: 0;
+  transition: border-color .15s;
+}
+.cf-card[data-active="1"] .cf-stepper {
+  border-color: var(--blue);
+  background: var(--blue-bg);
+}
+.cf-step-btn {
+  width: 30px;
+  height: 32px;
+  border: none;
+  background: none;
+  color: var(--text-soft);
+  cursor: pointer;
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  transition: background .13s, color .13s;
+}
+.cf-step-btn:hover:not(:disabled) {
+  background: var(--blue);
+  color: #fff;
+}
+.cf-step-btn:active:not(:disabled) { background: var(--blue); opacity: .8; }
+.cf-step-btn:disabled { opacity: .3; cursor: not-allowed; }
+.cf-step-minus { border-right: 1px solid var(--border); }
+.cf-step-plus  { border-left:  1px solid var(--border); }
+.cf-card[data-active="1"] .cf-step-minus,
+.cf-card[data-active="1"] .cf-step-plus {
+  border-color: rgba(37,99,235,.2);
+}
+
+/* Quantity number input — clean, center, no spinners */
+.cf-qty-input {
+  width: 38px !important;
   text-align: center !important;
-  font-size: 18px !important;
-  font-weight: 700 !important;
+  font-size: 16px !important;
+  font-weight: 800 !important;
   font-family: var(--mono) !important;
-  padding: 4px 6px !important;
+  padding: 0 2px !important;
   border: none !important;
   background: transparent !important;
   box-shadow: none !important;
   color: var(--text) !important;
-  border-radius: 6px !important;
+  -moz-appearance: textfield !important;
+  height: 32px !important;
+  line-height: 32px !important;
 }
-.cf-qty-input:focus {
-  outline: none !important;
-  background: var(--surface) !important;
-  box-shadow: 0 0 0 2px var(--blue-border) !important;
-}
+.cf-qty-input::-webkit-outer-spin-button,
+.cf-qty-input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+.cf-qty-input:focus { outline: none !important; }
+.cf-card[data-active="1"] .cf-qty-input { color: var(--blue) !important; }
 .cf-qty-input::placeholder { color: var(--muted) !important; }
 
-/* Divider wrapper */
-.cf-divider-wrap {
+/* ── Workers divider (÷ N) ── */
+.cf-workers-col {
   display: flex;
   flex-direction: column;
   gap: 2px;
@@ -2196,17 +2297,22 @@ textarea:focus {
   letter-spacing: .6px;
   text-transform: uppercase;
   color: var(--text-dim);
+  white-space: nowrap;
 }
 .cf-divider-select {
-  font-size: 12px !important;
-  padding: 4px 8px !important;
+  font-size: 11px !important;
+  padding: 3px 6px !important;
   border-radius: 7px !important;
   width: 100% !important;
   border-color: var(--border) !important;
   background: var(--surface) !important;
 }
+.cf-card[data-active="1"] .cf-divider-select {
+  border-color: rgba(37,99,235,.25) !important;
+  background: var(--surface) !important;
+}
 
-/* Remove row button */
+/* ── Remove row button ── */
 .cf-remove-btn {
   width: 22px;
   height: 22px;
@@ -2229,6 +2335,10 @@ textarea:focus {
   width: 22px;
   flex-shrink: 0;
 }
+
+/* Legacy aliases — keep old class names harmless */
+.cf-header { display: none; }
+.cf-divider-wrap { display: none; }
 
 /* ── Day Type compact layout ── */
 .daytype-row1 {
@@ -2322,9 +2432,12 @@ textarea:focus {
 
 /* Dark mode overrides for cf cards */
 [data-theme="dark"] .cf-card {
-  background: var(--surface-3);
+  background: var(--surface);
 }
-[data-theme="dark"] .cf-row {
+[data-theme="dark"] .cf-card-icon {
+  background: var(--surface-2);
+}
+[data-theme="dark"] .cf-stepper {
   background: var(--surface-2);
 }
 [data-theme="dark"] .cf-remove-btn:hover {
