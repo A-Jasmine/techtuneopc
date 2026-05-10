@@ -640,11 +640,11 @@ function renderUnitsListUI(pid, eid) {
   wrap.innerHTML = list.map((u, i) => `
     <div class="comm-field-wrap comm-field-wrap--unit-row">
       <label>
-        <span>Units Qty <span style="font-weight:400;font-size:10px;color:var(--text-dim)">(₱${(r.units_rate||0).toLocaleString()}/ea)</span></span>
-        <div style="display:flex;align-items:center;gap:4px">
-          <input type="number" min="0" value="${u.qty||0}" style="width:64px;text-align:center;padding:6px 8px;font-size:13px" ${disAttr} onchange="updateUnitsRow('${pid}','${eid}',${i},'qty',this.value)">
-          <button type="button" class="icon-btn" style="width:24px;height:24px;padding:0;flex-shrink:0;color:var(--danger)" title="Remove" ${disAttr} onclick="removeUnitsRow('${pid}','${eid}',${i})"><i data-lucide="x"></i></button>
-        </div>
+        <span style="display:flex;align-items:center;justify-content:space-between;gap:4px">
+          <span>Units Qty <span style="font-weight:400;font-size:10px;color:var(--text-dim)">(₱${(r.units_rate||0).toLocaleString()}/ea)</span></span>
+          <button type="button" class="icon-btn" style="width:18px;height:18px;padding:0;flex-shrink:0;color:var(--danger);border:none;background:none" title="Remove" ${disAttr} onclick="removeUnitsRow('${pid}','${eid}',${i})"><i data-lucide="x"></i></button>
+        </span>
+        <input type="number" min="0" value="${u.qty||0}" style="width:100%;text-align:center;padding:6px 8px;font-size:13px;margin-top:4px" ${disAttr} onchange="updateUnitsRow('${pid}','${eid}',${i},'qty',this.value)">
       </label>
       <div class="div-row"><span class="div-label">Workers</span>
         <select style="flex:1;font-size:12px" title="Divide by (# of workers)" ${disAttr} onchange="updateUnitsRow('${pid}','${eid}',${i},'div',this.value)">
@@ -656,7 +656,9 @@ function renderUnitsListUI(pid, eid) {
       </div>
     </div>`).join("") + `
   <div class="comm-field-wrap comm-field-wrap--add-unit">
-    <button type="button" class="btn" ${disAttr} onclick="addUnitsRow('${pid}','${eid}')"><i data-lucide="plus"></i> Add Unit</button>
+    <span class="div-label" style="visibility:hidden">Add</span>
+    <button type="button" class="btn" style="width:100%" ${disAttr} onclick="addUnitsRow('${pid}','${eid}')"><i data-lucide="plus"></i> Add Unit</button>
+    <div class="div-row" style="visibility:hidden"><span class="div-label">Workers</span></div>
   </div>`;
   lucide.createIcons();
 }

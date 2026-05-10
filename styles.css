@@ -2077,11 +2077,10 @@ textarea:focus {
 .comm-field-wrap--unit-row label {
   margin: 0;
 }
-/* Add-unit button — normal grid cell, self-aligns to end vertically */
+/* Add-unit button — normal grid cell, button aligns with input row */
 .comm-field-wrap--add-unit {
   display: flex;
   flex-direction: column;
-  justify-content: flex-end;
   gap: 4px;
 }
 .comm-field-wrap--add-unit .btn {
@@ -2116,6 +2115,16 @@ textarea:focus {
   text-align: center;
   padding: 6px 8px;
   font-size: 13px;
+}
+/* Unit rows: title+X on top line, full-width input below — column layout */
+.comm-field-wrap--unit-row > label {
+  flex-direction: column !important;
+  align-items: stretch !important;
+  gap: 0 !important;
+  white-space: normal;
+}
+.comm-field-wrap--unit-row > label input[type="number"] {
+  width: 100% !important;
 }
 .div-row {
   display: flex;
