@@ -717,26 +717,25 @@ function renderVehicleListUI(pid, eid, type) {
   wrap.innerHTML = rows.map((row, i) => {
     const divOpts = Array.from({length:10},(_,k)=>k+1).map(n=>`<option value="${n}" ${(+row.div||1)===n?"selected":""}>${String.fromCharCode(247)}${n}</option>`).join("");
     const isFirst = i === 0;
-    // Show remove (×) button for all rows except the first default row when it's the only row
     const canRemove = !(isFirst && rows.length === 1);
     return `
-    <div class="vlist-row" style="display:grid;grid-template-columns:1fr 90px 28px;gap:6px;align-items:end;${isFirst ? '' : 'margin-top:6px'}">
-      <label style="margin:0;gap:3px">
+    <div class="vlist-row" style="display:grid;grid-template-columns:1fr auto 28px;gap:8px;align-items:center;">
+      <label style="margin:0;gap:4px;display:flex;flex-direction:column;">
         ${isFirst
-          ? `<span style="font-size:10px;font-weight:700;letter-spacing:.6px;color:var(--text-dim);display:flex;align-items:center;gap:4px">
-               ${label} <span style="font-weight:400;color:var(--text-dim)">(₱${rate}/ea)</span>
-               <button type="button" class="icon-btn" style="margin-left:auto;width:18px;height:18px;padding:0;flex-shrink:0;color:var(--accent);border:1px solid var(--accent);border-radius:50%;background:none;line-height:1;font-size:13px;font-weight:700;cursor:pointer" title="Add another ${label}" ${dis} onclick="addVehicleRow('${pid}','${eid}','${type}')">+</button>
+          ? `<span style="font-size:10px;font-weight:700;letter-spacing:.6px;color:var(--text-dim);display:flex;align-items:center;gap:6px;">
+               <span>${label} <span style="font-weight:400">(₱${rate}/ea)</span></span>
+               <button type="button" style="margin-left:auto;width:20px;height:20px;padding:0;flex-shrink:0;color:var(--blue);border:1.5px solid var(--blue);border-radius:50%;background:var(--blue-bg);line-height:1;font-size:14px;font-weight:700;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;" title="Add another ${label}" ${dis} onclick="addVehicleRow('${pid}','${eid}','${type}')">+</button>
              </span>`
-          : `<span style="font-size:10px;color:var(--text-dim);font-style:italic">+ more</span>`}
-        <input type="number" min="0" value="${row.qty || 0}" ${dis} onchange="updateVehicleRow('${pid}','${eid}','${type}',${i},'qty',this.value)">
+          : `<span style="font-size:10px;color:var(--text-dim);font-style:italic;">+ more</span>`}
+        <input type="number" min="0" value="${row.qty || 0}" ${dis} style="text-align:center;font-size:15px;font-weight:600;font-family:var(--mono);padding:7px 10px;" onchange="updateVehicleRow('${pid}','${eid}','${type}',${i},'qty',this.value)">
       </label>
-      <div style="display:flex;flex-direction:column;gap:3px">
-        ${isFirst ? `<span style="font-size:10px;font-weight:700;letter-spacing:.6px;color:var(--text-dim)">Workers</span>` : `<span style="font-size:10px;opacity:0">w</span>`}
-        <select style="font-size:12px" title="Divide by" ${dis} onchange="updateVehicleRow('${pid}','${eid}','${type}',${i},'div',this.value)">${divOpts}</select>
+      <div style="display:flex;flex-direction:column;gap:4px;min-width:80px;">
+        <span style="font-size:10px;font-weight:700;letter-spacing:.6px;color:var(--text-dim);">Workers</span>
+        <select style="font-size:12px;padding:6px 8px;" title="Divide by" ${dis} onchange="updateVehicleRow('${pid}','${eid}','${type}',${i},'div',this.value)">${divOpts}</select>
       </div>
       ${canRemove
-        ? `<button type="button" class="icon-btn" style="width:26px;height:34px;padding:0;color:var(--danger);border:none;background:none;align-self:end;margin-bottom:1px" title="Remove row" ${dis} onclick="removeVehicleRow('${pid}','${eid}','${type}',${i})"><i data-lucide="x"></i></button>`
-        : `<span style="width:26px"></span>`}
+        ? `<button type="button" style="width:26px;height:26px;padding:0;color:var(--danger);border:none;background:none;cursor:pointer;display:grid;place-items:center;border-radius:6px;flex-shrink:0;" title="Remove row" ${dis} onclick="removeVehicleRow('${pid}','${eid}','${type}',${i})"><i data-lucide="x"></i></button>`
+        : `<span style="width:26px;"></span>`}
     </div>`;
   }).join("");
   lucide.createIcons();
