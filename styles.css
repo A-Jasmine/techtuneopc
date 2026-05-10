@@ -105,6 +105,83 @@
   color: var(--text-soft);
 }
 
+/* Tab nav pill dark */
+[data-theme="dark"] .tabs {
+  background: #1a1a1a;
+}
+
+/* Active tab dark — keep dark bg + white text (don't inherit --black = light) */
+[data-theme="dark"] .tab.active {
+  background: #e0e0e0;
+  color: #111111;
+}
+
+/* Primary button dark — keep dark bg + white text */
+[data-theme="dark"] .btn.primary {
+  background: #e0e0e0;
+  color: #111111;
+  border-color: transparent;
+}
+[data-theme="dark"] .btn.primary:hover {
+  background: #f0f0f0;
+  box-shadow: 0 4px 14px rgba(255, 255, 255, .1);
+}
+
+/* Default btn dark */
+[data-theme="dark"] .btn {
+  background: var(--surface-2);
+  color: var(--text-soft);
+  border-color: var(--border);
+}
+[data-theme="dark"] .btn:hover {
+  background: var(--surface-3);
+  color: var(--text);
+  border-color: var(--border-hi);
+}
+
+/* Ghost btn dark */
+[data-theme="dark"] .btn.ghost {
+  background: transparent;
+  color: var(--text-soft);
+  border-color: var(--border);
+}
+[data-theme="dark"] .btn.ghost:hover {
+  background: var(--surface-3);
+  color: var(--text);
+}
+
+/* Accent btn dark */
+[data-theme="dark"] .btn.accent {
+  background: var(--blue-bg);
+  color: var(--blue);
+  border-color: var(--blue-border);
+}
+[data-theme="dark"] .btn.accent:hover {
+  background: #1e3a5f;
+}
+
+/* Danger btn dark */
+[data-theme="dark"] .btn.danger {
+  background: #2a1010;
+  color: var(--danger);
+  border-color: #5a1a1a;
+}
+[data-theme="dark"] .btn.danger:hover {
+  background: #3a1515;
+}
+
+/* Icon btn dark */
+[data-theme="dark"] .icon-btn {
+  background: var(--surface-2);
+  color: var(--text-dim);
+  border-color: var(--border);
+}
+[data-theme="dark"] .icon-btn:hover {
+  background: var(--surface-3);
+  color: var(--text);
+  border-color: var(--border-hi);
+}
+
 /* Inputs dark — override hardcoded #fff background */
 [data-theme="dark"] input,
 [data-theme="dark"] select,
