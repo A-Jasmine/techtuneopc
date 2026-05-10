@@ -2057,42 +2057,48 @@ textarea:focus {
 
 /* ── Commission per-field divide grid ── */
 .commission-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  display: flex;
+  flex-wrap: wrap;
   gap: 10px;
+  align-items: flex-end;
 }
-/* Units container — normal grid cell, sits beside Tubes Qty */
+/* Units container — display:contents so each unit-row becomes a direct flex child */
 .comm-field-wrap--units {
-  display: contents; /* let each unit row be a direct grid item */
+  display: contents;
   padding: 0;
   background: none;
   border: none;
 }
-/* Each individual unit row — normal grid cell matching other comm-field-wraps */
+/* Each individual unit row — inline flex item, same size as other fields */
 .comm-field-wrap--unit-row {
   display: flex;
   flex-direction: column;
   gap: 4px;
+  flex: 1 1 120px;
+  min-width: 100px;
 }
 .comm-field-wrap--unit-row label {
   margin: 0;
 }
-/* Add-unit button — normal grid cell, button aligns with input row */
+/* Add-unit button — compact, sits at the end of the row */
 .comm-field-wrap--add-unit {
   display: flex;
   flex-direction: column;
+  justify-content: flex-end;
   gap: 4px;
+  flex: 0 0 auto;
 }
 .comm-field-wrap--add-unit .btn {
-  width: 100%;
+  white-space: nowrap;
   font-size: 11px;
-  padding: 6px 8px;
-  justify-content: center;
+  padding: 6px 10px;
 }
 .comm-field-wrap {
   display: flex;
   flex-direction: column;
   gap: 4px;
+  flex: 1 1 140px;
+  min-width: 120px;
 }
 /* Label: title on top, full-width input below */
 .comm-field-wrap > label {
