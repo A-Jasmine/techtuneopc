@@ -1043,18 +1043,10 @@ function renderEntries(pid) {
                 <div class="holiday-detail-field holiday-pay-chip">
                   <span class="holiday-detail-label">Holiday Bonus</span>
                   <span class="holiday-pay-badge hbadge-${holidayType}">
-                    ${holidayType === 'regular' ? `+₱${((emp ? emp.base_rate : 1000) * (e.is_halfday ? 0.5 : 1)).toLocaleString()} (100% base rate)` : holidayType === 'onsite' ? '+₱1,000 (Onsite)' : holidayType === 'offsite' ? '+₱1,000 (Offsite)' : '+' + Math.round((emp ? emp.base_rate : 1000) * 0.3).toLocaleString() + ' (30% rate)'}
+                    ${holidayType === 'regular' ? `+₱${((emp ? emp.base_rate : 1000) * (e.is_halfday ? 0.5 : 1)).toLocaleString()} (100% base)` : holidayType === 'onsite' ? '+₱1,000 (Onsite)' : holidayType === 'offsite' ? '+₱1,000 (Offsite)' : '+' + Math.round((emp ? emp.base_rate : 1000) * 0.3).toLocaleString() + ' (30% rate)'}
                   </span>
+                  ${holidayType === 'regular' ? `<span style="font-size:10px;color:#dc2626;font-weight:600;margin-top:2px">= ₱${((emp ? emp.base_rate : 1000) * (e.is_halfday ? 1 : 2)).toLocaleString()} total</span>` : ''}
                 </div>
-                ${holidayType === 'regular' ? `
-                <div class="holiday-detail-field" style="grid-column:1/-1">
-                  <div class="regular-holiday-breakdown">
-                    <div class="rhb-row"><span class="rhb-label">Base Rate</span><span class="rhb-value">₱${((emp ? emp.base_rate : 1000) * (e.is_halfday ? 0.5 : 1)).toLocaleString()}</span></div>
-                    <div class="rhb-row"><span class="rhb-label">Holiday Pay (+100%)</span><span class="rhb-value rhb-green">+₱${((emp ? emp.base_rate : 1000) * (e.is_halfday ? 0.5 : 1)).toLocaleString()}</span></div>
-                    <div class="rhb-divider"></div>
-                    <div class="rhb-row rhb-total"><span class="rhb-label">Total for the day</span><span class="rhb-value">₱${((emp ? emp.base_rate : 1000) * (e.is_halfday ? 1 : 2)).toLocaleString()}</span></div>
-                  </div>
-                </div>` : ''}
               </div>
             </div>` : ''}
             <div id="holiday-notes-wrap-${e.id}" style="display:none"></div>
