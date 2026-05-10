@@ -6,21 +6,34 @@ const peso = n => "\u20B1" + (n || 0).toLocaleString("en-PH", { minimumFractionD
 const fmt = n => (n || 0).toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
 // =============== CONSTANTS ===============
+// Default brands list for the dropdown in Settings
+const DEFAULT_BRAND_NAMES = ["Leilei", "Aion", "GAC", "MG", "Chery", "Omoda & Jaecoo"];
+
 // Commission rates — loaded from localStorage so Settings tab can override them
+// Structure: { brandKey: { sedan, mpv, sunroof, scrap, units_rate, sedan_qty, ... }, ... }
+// Also stores brand metadata: { __brands: [{ key, label }] }
 function loadCommissionRates() {
   try {
     const saved = localStorage.getItem("commissionRates");
     if (saved) {
       const p = JSON.parse(saved);
-      ["byd", "geely", "other"].forEach(b => {
-        if (!p[b]) return;
-        if (p[b].scrap === undefined) p[b].scrap = 0;
-        if (p[b].units_rate === undefined) p[b].units_rate = 0;
+      // Ensure each brand has all required fields
+      const brands = p.__brands || [{ key: "byd", label: "BYD" }, { key: "geely", label: "Geely" }, { key: "other", label: "Other" }];
+      brands.forEach(b => {
+        if (!p[b.key]) p[b.key] = { sedan: 0, mpv: 0, sunroof: 0, scrap: 0, units_rate: 0 };
+        if (p[b.key].scrap === undefined) p[b.key].scrap = 0;
+        if (p[b.key].units_rate === undefined) p[b.key].units_rate = 0;
       });
+      p.__brands = brands;
       return p;
     }
   } catch (e) { }
   return {
+    __brands: [
+      { key: "byd", label: "BYD" },
+      { key: "geely", label: "Geely" },
+      { key: "other", label: "Other" }
+    ],
     byd: { sedan: 150, mpv: 200, sunroof: 50, scrap: 0, units_rate: 0 },
     geely: { sedan: 200, mpv: 200, sunroof: 200, scrap: 0, units_rate: 0 },
     other: { sedan: 0, mpv: 0, sunroof: 0, scrap: 0, units_rate: 0 }
@@ -34,6 +47,7 @@ let COMMISSION_RATES = loadCommissionRates();
 let BYD = COMMISSION_RATES.byd;
 let GEELY = COMMISSION_RATES.geely;
 const TUBE_RATE = 50, HOLIDAY_AMT = 1000, OFFSET_AMT = 1000;
+const SPECIAL_HOLIDAY_PCT = 0.30; // 30% of base rate
 const BASE_RATE_OPTIONS = [1000, 1100, 1200];
 const LOCATIONS = ["Calamba", "Sta. Rosa", "Las Piñas", "Alabang", "Makati", "Quezon City", "Pasig", "Manila", "Cavite", "Other"];
 const COMPANY = { name: "Techtune Solutions Enterprises OPC", addr1: "Unit 6505 Valencia Casa De Sequoia", addr2: "Padre Diego Cera Ave., Elias Aldana, Las Pinas City", email: "techtunesolutions.enterprises@gmail.com" };
@@ -47,6 +61,7 @@ function calcEntryBase(e, baseRate) {
   // holiday_type "offsite" = employee didn't come in; only holiday bonus applies, no base pay
   const holidayType = e.holiday_type || (e.is_holiday ? "onsite" : "none");
   if (holidayType === "offsite") return 0;
+  // special_holiday: employee came in, gets base pay + 30% bonus
   const br = baseRate || 1000;
   return e.is_halfday ? round2(br / 2) : br;
 }
@@ -61,9 +76,17 @@ function parseUnitsList(e) {
   return [];
 }
 
-function calcEntry(e, baseRate) {
+function getBrandRates(brandKey) {
   const cr = COMMISSION_RATES;
-  const r = e.brand === "byd" ? cr.byd : e.brand === "geely" ? cr.geely : cr.other;
+  if (brandKey && cr[brandKey]) return cr[brandKey];
+  if (cr.other) return cr.other;
+  const brands = cr.__brands || [];
+  const first = brands[0];
+  return first && cr[first.key] ? cr[first.key] : { sedan: 0, mpv: 0, sunroof: 0, scrap: 0, units_rate: 0 };
+}
+
+function calcEntry(e, baseRate) {
+  const r = getBrandRates(e.brand);
   const globalDiv = safeDiv(e.divide_by || 1);
   const sedanDiv = safeDiv(e.sedan_div || globalDiv);
   const mpvDiv = safeDiv(e.mpv_div || globalDiv);
@@ -87,9 +110,14 @@ function calcEntry(e, baseRate) {
   );
   const otHrs = (+e.ot_hours || 0) + (+e.ot_minutes || 0) / 60;
   const otPay = round2(otHrs * (+e.ot_rate || otRateFromBase(baseRate)));
-  // holiday_type: "onsite" = full pay + bonus, "offsite" = bonus only (no base, no commission)
+  // holiday_type: "onsite" = full pay + bonus, "offsite" = bonus only, "special" = +30% of base rate
   const holidayType = e.holiday_type || (e.is_holiday ? "onsite" : "none");
-  const holiday = (holidayType === "onsite" || holidayType === "offsite") ? HOLIDAY_AMT : 0;
+  let holiday = 0;
+  if (holidayType === "onsite" || holidayType === "offsite") {
+    holiday = HOLIDAY_AMT;
+  } else if (holidayType === "special") {
+    holiday = round2((baseRate || 1000) * SPECIAL_HOLIDAY_PCT);
+  }
   const base = calcEntryBase(e, baseRate);
   const gas = +e.gas_allowance || 0;
   return { base, commission, otPay, holiday, gas, total: round2(base + commission + otPay + holiday + gas) };
@@ -405,13 +433,15 @@ function editPeriod(id) {
   // Attendance summary chips
   const fullDays = p.entries.filter(e => !e.is_halfday && !e.is_holiday && !e.is_offset).length;
   const halfDays = p.entries.filter(e => e.is_halfday).length;
-  const holidayDays = p.entries.filter(e => e.is_holiday).length;
+  const holidayDays = p.entries.filter(e => e.is_holiday && e.holiday_type !== "special").length;
+  const specialDays = p.entries.filter(e => (e.holiday_type || "") === "special").length;
   const offsetDays = p.entries.filter(e => e.is_offset).length;
   const attendanceChips = `
     <div class="attendance-chips">
       <span class="chip chip-full"><i data-lucide="sun"></i> ${fullDays} Full</span>
       ${halfDays ? `<span class="chip chip-half"><i data-lucide="clock"></i> ${halfDays} Half</span>` : ""}
       ${holidayDays ? `<span class="chip chip-holiday"><i data-lucide="star"></i> ${holidayDays} Holiday</span>` : ""}
+      ${specialDays ? `<span class="chip chip-half"><i data-lucide="calendar-heart"></i> ${specialDays} Special Hol</span>` : ""}
       ${offsetDays ? `<span class="chip chip-offset"><i data-lucide="refresh-cw"></i> ${offsetDays} Offset</span>` : ""}
     </div>`;
 
@@ -498,15 +528,20 @@ async function updatePeriod(id, key, val) {
 }
 
 // =============== ENTRIES ===============
-// Pull current default qty for geely (the default brand on new entries)
-const DEFAULT_UNITS = () => COMMISSION_RATES.geely || {};
+// Pull current default qty for first brand (the default brand on new entries)
+const DEFAULT_BRAND_KEY = () => {
+  const brands = COMMISSION_RATES.__brands || [];
+  return brands.length ? brands[0].key : "geely";
+};
+const DEFAULT_UNITS = () => COMMISSION_RATES[DEFAULT_BRAND_KEY()] || {};
 async function addEntry(pid) {
   const p = state.periods.find(x => x.id === pid);
   const emp = state.employees.find(e => e.id === p.employee_id);
+  const defaultBrand = DEFAULT_BRAND_KEY();
   const newEntry = {
     pay_period_id: pid, date: new Date().toISOString().slice(0, 10), location: "Calamba",
     time_in: "08:00", time_out: "17:00", ot_hours: 0, ot_minutes: 0, ot_rate: otRateFromBase(emp.base_rate),
-    brand: "geely",
+    brand: defaultBrand,
     sedan_qty: DEFAULT_UNITS().sedan_qty || 0,
     mpv_qty: DEFAULT_UNITS().mpv_qty || 0,
     sunroof_qty: DEFAULT_UNITS().sunroof_qty || 0,
@@ -630,8 +665,7 @@ function renderUnitsListUI(pid, eid) {
   const wrap = document.getElementById(`units-list-${eid}`);
   if (!wrap) return;
   const list = parseUnitsList(e);
-  const cr = COMMISSION_RATES;
-  const r = e.brand === "byd" ? cr.byd : e.brand === "geely" ? cr.geely : cr.other;
+  const r = getBrandRates(e.brand);
   const isOffsite = (e.holiday_type || (e.is_holiday ? "onsite" : "none")) === "offsite";
   const disAttr = isOffsite ? "disabled" : "";
 
@@ -697,7 +731,8 @@ function renderEntries(pid) {
     const baseLabel = e.is_offset ? `Offset day`
       : holidayType === "offsite" ? `Holiday Offsite · ₱0 base (holiday bonus only)`
         : holidayType === "onsite" ? (e.is_halfday ? `Holiday Onsite · Half day · ₱${(baseRate / 2).toLocaleString()}` : `Holiday Onsite · ₱${baseRate.toLocaleString()}`)
-          : e.is_halfday ? `Half day · ₱${(baseRate / 2).toLocaleString()}` : `Full day · ₱${baseRate.toLocaleString()}`;
+          : holidayType === "special" ? (e.is_halfday ? `Special Holiday · Half day · ₱${(baseRate / 2).toLocaleString()} + ${Math.round(baseRate * 0.3)}` : `Special Holiday · ₱${baseRate.toLocaleString()} + ₱${Math.round(baseRate * 0.3)} bonus`)
+            : e.is_halfday ? `Half day · ₱${(baseRate / 2).toLocaleString()}` : `Full day · ₱${baseRate.toLocaleString()}`;
 
     // Per-field divide helpers
     const divSel = (field, val) => `<select style="width:80px;font-size:12px" onchange="updateEntry('${pid}','${e.id}','${field}',this.value)" title="Divide by (# of workers)">
@@ -708,11 +743,15 @@ function renderEntries(pid) {
     </select>`;
 
     // Brand rate hint
-    const cr = COMMISSION_RATES;
-    const r = e.brand === "byd" ? cr.byd : e.brand === "geely" ? cr.geely : cr.other;
+    const r = getBrandRates(e.brand);
     const brandHint = `<span class="brand-rate-hint" style="font-size:11px;color:var(--text-dim);display:inline-flex;gap:6px;align-items:center;flex-wrap:wrap">
       <span>Sedan ₱${r.sedan}</span><span>MPV ₱${r.mpv}</span><span>Sunroof ₱${r.sunroof}</span>
     </span>`;
+
+    // Build dynamic brand options
+    const brandOptions = (COMMISSION_RATES.__brands || []).map(b =>
+      `<option value="${b.key}" ${e.brand === b.key ? "selected" : ""}>${b.label}</option>`
+    ).join("");
 
     const offOpacity = isOffsite ? "opacity:.38;pointer-events:none;user-select:none" : "";
 
@@ -737,10 +776,11 @@ function renderEntries(pid) {
           </label>
           <label style="flex-direction:column;gap:4px">
             <span style="font-size:10px;font-weight:700;letter-spacing:.8px;text-transform:uppercase;color:var(--text-dim)">Holiday Pay</span>
-            <select onchange="onHolidayTypeChange('${pid}','${e.id}',this.value)" style="${holidayType === 'offsite' ? 'border-color:var(--purple);background:var(--purple-bg);color:var(--purple)' : holidayType === 'onsite' ? 'border-color:var(--green);background:var(--green-bg);color:var(--green)' : ''}">
+            <select onchange="onHolidayTypeChange('${pid}','${e.id}',this.value)" style="${holidayType === 'offsite' ? 'border-color:var(--purple);background:var(--purple-bg);color:var(--purple)' : holidayType === 'onsite' ? 'border-color:var(--green);background:var(--green-bg);color:var(--green)' : holidayType === 'special' ? 'border-color:var(--amber);background:var(--amber-bg);color:var(--amber)' : ''}">
               <option value="none"    ${holidayType === "none" ? "selected" : ""}>None</option>
               <option value="onsite"  ${holidayType === "onsite" ? "selected" : ""}>Holiday Onsite (+₱1,000)</option>
               <option value="offsite" ${holidayType === "offsite" ? "selected" : ""}>Holiday Offsite (+₱1,000, no work)</option>
+              <option value="special" ${holidayType === "special" ? "selected" : ""}>Special Holiday (+30% of daily rate)</option>
             </select>
           </label>
           <label class="toggle-check tone-blue ${e.is_offset ? "is-checked" : ""}">
@@ -763,9 +803,7 @@ function renderEntries(pid) {
         <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;flex-wrap:wrap">
           <label style="margin:0;flex-direction:row;align-items:center;gap:8px;font-size:10px;font-weight:700;letter-spacing:.8px;text-transform:uppercase;color:var(--text-dim)">Brand
             <select onchange="updateEntry('${pid}','${e.id}','brand',this.value);renderEntries('${pid}')" ${isOffsite ? "disabled" : ""}>
-              <option value="geely" ${e.brand === "geely" ? "selected" : ""}>Geely</option>
-              <option value="byd"   ${e.brand === "byd" ? "selected" : ""}>BYD</option>
-              <option value="other" ${e.brand === "other" ? "selected" : ""}>Other</option>
+              ${brandOptions}
             </select>
           </label>
           ${brandHint}
@@ -819,7 +857,7 @@ async function onHolidayTypeChange(pid, eid, type) {
   const p = state.periods.find(x => x.id === pid);
   const e = p.entries.find(x => x.id === eid);
   e.holiday_type = type;
-  e.is_holiday = (type === "onsite" || type === "offsite");
+  e.is_holiday = (type === "onsite" || type === "offsite" || type === "special");
   await sb.from('entries').update({ holiday_type: type, is_holiday: e.is_holiday }).eq('id', eid);
   editPeriod(pid); // full re-render so offsite greying applies
 }
@@ -1025,71 +1063,157 @@ function renderEarningsHistory() {
 
 // ── Settings tab ──
 function renderSettings() {
-  const r = COMMISSION_RATES;
   const el = document.getElementById("settings-content");
   if (!el) return;
-  const BRANDS = ["byd", "geely", "other"];
   el.innerHTML = `
-    <div class="card">
+    <div class="card" id="brand-mgmt-card">
       <div class="card-head">
-        <div><h2><i data-lucide="sliders-horizontal"></i> Commission Rates &amp; Default Qty</h2>
-        <small>Rate per unit (₱) and default qty pre-filled on new entries. Saved to browser.</small></div>
-        <button class="btn primary" onclick="saveSettings()"><i data-lucide="save"></i> Save Changes</button>
+        <div>
+          <h2><i data-lucide="tag"></i> Brand Management</h2>
+          <small>Configure commission rates per brand. All brands appear dynamically in payroll entries.</small>
+        </div>
+        <button class="btn primary" onclick="saveSettings()"><i data-lucide="save"></i> Save All</button>
       </div>
-      <div style="display:grid;gap:24px;padding:0 4px">
-        ${BRANDS.map(brand => `
-          <div>
-            <div style="font-weight:700;font-size:13px;text-transform:uppercase;letter-spacing:.8px;margin-bottom:12px;color:var(--text-soft)">${brand.toUpperCase()}</div>
-            <div style="display:grid;gap:8px">
-              <div style="display:grid;grid-template-columns:160px 1fr 1fr;gap:10px;align-items:end;padding-bottom:4px;border-bottom:1px solid var(--border)">
-                <span style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:var(--text-dim)">Field</span>
-                <span style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:var(--text-dim)">Rate per unit (₱)</span>
-                <span style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:var(--text-dim)">Default Qty</span>
-              </div>
-              ${[
-      { key: "sedan", rateKey: "sedan", label: "Sedan / SUV" },
-      { key: "mpv", rateKey: "mpv", label: "MPV" },
-      { key: "sunroof", rateKey: "sunroof", label: "Sunroof" },
-      { key: "scrapping", rateKey: "scrap", label: "Scrap" },
-      { key: "tubes", rateKey: "tubes_rate", label: "Tubes" },
-      { key: "units", rateKey: "units_rate", label: "Units" },
-    ].map(f => `
-                <div style="display:grid;grid-template-columns:160px 1fr 1fr;gap:10px;align-items:center">
-                  <span style="font-size:12px;font-weight:600;color:var(--text)">${f.label}</span>
-                  <input type="number" id="sr-${brand}-${f.rateKey}" min="0" value="${r[brand][f.rateKey] || 0}" placeholder="₱ rate">
-                  <input type="number" id="sq-${brand}-${f.key}" min="0" value="${r[brand][f.key + '_qty'] || 0}" placeholder="default qty">
-                </div>
-              `).join("")}
-            </div>
-          </div>
-        `).join('<hr style="border:none;border-top:1px solid var(--border);margin:4px 0">')}
+      <div id="brand-mgmt-body" style="display:grid;gap:0"></div>
+      <div style="padding:20px 4px 4px;display:flex;flex-wrap:wrap;gap:10px;align-items:flex-end">
+        <div style="display:flex;flex-direction:column;gap:6px;flex:1;min-width:180px">
+          <span style="font-size:10px;font-weight:700;letter-spacing:.8px;text-transform:uppercase;color:var(--text-dim)">Add from default list</span>
+          <select id="brand-preset-sel" style="width:100%">
+            <option value="">— Pick a brand —</option>
+            ${DEFAULT_BRAND_NAMES.map(n => `<option value="${n}">${n}</option>`).join("")}
+          </select>
+        </div>
+        <button class="btn accent" onclick="addBrandFromPreset()"><i data-lucide="plus-circle"></i> Add Brand</button>
+        <div style="display:flex;flex-direction:column;gap:6px;flex:1;min-width:180px">
+          <span style="font-size:10px;font-weight:700;letter-spacing:.8px;text-transform:uppercase;color:var(--text-dim)">Or add a custom brand</span>
+          <input id="brand-custom-input" placeholder="Brand name…" style="width:100%" />
+        </div>
+        <button class="btn accent" onclick="addCustomBrand()"><i data-lucide="plus-circle"></i> Add Custom</button>
       </div>
     </div>`;
+  renderBrandMgmtBody();
   lucide.createIcons();
 }
 
-function saveSettings() {
-  const brands = ["byd", "geely", "other"];
-  const rates = {};
-  brands.forEach(b => {
-    rates[b] = {
-      sedan: +document.getElementById(`sr-${b}-sedan`).value || 0,
-      mpv: +document.getElementById(`sr-${b}-mpv`).value || 0,
-      sunroof: +document.getElementById(`sr-${b}-sunroof`).value || 0,
-      scrap: +document.getElementById(`sr-${b}-scrap`).value || 0,
-      tubes_rate: +document.getElementById(`sr-${b}-tubes_rate`).value || 0,
-      units_rate: +document.getElementById(`sr-${b}-units_rate`).value || 0,
-      sedan_qty: +document.getElementById(`sq-${b}-sedan`).value || 0,
-      mpv_qty: +document.getElementById(`sq-${b}-mpv`).value || 0,
-      sunroof_qty: +document.getElementById(`sq-${b}-sunroof`).value || 0,
-      scrapping_qty: +document.getElementById(`sq-${b}-scrapping`).value || 0,
-      tubes_qty: +document.getElementById(`sq-${b}-tubes`).value || 0,
-      units_qty: +document.getElementById(`sq-${b}-units`).value || 0,
-    };
+const RATE_FIELDS = [
+  { key: "sedan", label: "Sedan / SUV" },
+  { key: "mpv", label: "MPV" },
+  { key: "sunroof", label: "Sunroof" },
+  { key: "scrap", label: "Scrapping" },
+  { key: "units_rate", label: "Units" },
+];
+
+function renderBrandMgmtBody() {
+  const brands = COMMISSION_RATES.__brands || [];
+  const body = document.getElementById("brand-mgmt-body");
+  if (!body) return;
+  if (!brands.length) {
+    body.innerHTML = '<div class="empty-state" style="padding:24px">No brands configured yet — add one below.</div>';
+    lucide.createIcons();
+    return;
+  }
+  body.innerHTML = brands.map((b, idx) => {
+    const r = COMMISSION_RATES[b.key] || {};
+    const isFirst = idx === 0;
+    return `
+      <div style="padding:20px 4px;${isFirst ? '' : 'border-top:1px solid var(--border);margin-top:4px'}">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+          <div style="font-weight:700;font-size:13px;text-transform:uppercase;letter-spacing:.8px;color:var(--text-soft)">${b.label}</div>
+          <button class="btn danger" style="padding:4px 10px;font-size:11px" onclick="removeBrand('${b.key}')"><i data-lucide="trash-2"></i> Remove</button>
+        </div>
+        <div style="display:grid;gap:8px">
+          <div style="display:grid;grid-template-columns:160px 1fr 1fr;gap:10px;align-items:end;padding-bottom:4px;border-bottom:1px solid var(--border)">
+            <span style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:var(--text-dim)">Vehicle Type</span>
+            <span style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:var(--text-dim)">Rate per unit (₱)</span>
+            <span style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:var(--text-dim)">Default Qty</span>
+          </div>
+          ${RATE_FIELDS.map(f => `
+            <div style="display:grid;grid-template-columns:160px 1fr 1fr;gap:10px;align-items:center">
+              <span style="font-size:12px;font-weight:600;color:var(--text)">${f.label}</span>
+              <input type="number" id="sr-${b.key}-${f.key}" min="0" value="${r[f.key] || 0}" placeholder="₱ rate">
+              <input type="number" id="sq-${b.key}-${f.key}" min="0" value="${r[f.key + '_qty'] || r[f.key === 'units_rate' ? 'units_qty' : f.key === 'scrap' ? 'scrapping_qty' : f.key + '_qty'] || 0}" placeholder="default qty">
+            </div>
+          `).join("")}
+          <div style="display:grid;grid-template-columns:160px 1fr 1fr;gap:10px;align-items:center">
+            <span style="font-size:12px;font-weight:600;color:var(--text)">Tubes</span>
+            <input type="number" id="sr-${b.key}-tubes_rate" min="0" value="${r.tubes_rate || 0}" placeholder="₱ rate">
+            <input type="number" id="sq-${b.key}-tubes" min="0" value="${r.tubes_qty || 0}" placeholder="default qty">
+          </div>
+        </div>
+      </div>`;
+  }).join("");
+  lucide.createIcons();
+}
+
+function addBrandFromPreset() {
+  const sel = document.getElementById("brand-preset-sel");
+  const label = sel.value.trim();
+  if (!label) return toast("Pick a brand from the list");
+  addBrandByLabel(label);
+  sel.value = "";
+}
+
+function addCustomBrand() {
+  const inp = document.getElementById("brand-custom-input");
+  const label = (inp.value || "").trim();
+  if (!label) return toast("Enter a brand name");
+  addBrandByLabel(label);
+  inp.value = "";
+}
+
+function addBrandByLabel(label) {
+  const brands = COMMISSION_RATES.__brands || [];
+  // Generate a safe key from the label
+  const key = label.toLowerCase().replace(/[^a-z0-9]/g, "_").replace(/_+/g, "_").replace(/^_|_$/g, "") || ("brand_" + Date.now());
+  if (brands.find(b => b.key === key)) return toast(`"${label}" already exists`);
+  brands.push({ key, label });
+  COMMISSION_RATES.__brands = brands;
+  if (!COMMISSION_RATES[key]) COMMISSION_RATES[key] = { sedan: 0, mpv: 0, sunroof: 0, scrap: 0, units_rate: 0, tubes_rate: 0 };
+  // Save and re-render
+  saveCommissionRates(COMMISSION_RATES);
+  renderBrandMgmtBody();
+  lucide.createIcons();
+  toast(`Brand "${label}" added ✓`);
+}
+
+async function removeBrand(key) {
+  const brands = COMMISSION_RATES.__brands || [];
+  const b = brands.find(x => x.key === key);
+  const ok = await confirmDanger({
+    title: "Remove Brand?",
+    message: `Remove <strong>${b ? b.label : key}</strong> and all its rate settings? Existing entries with this brand won't be recalculated automatically.`,
+    confirmText: "Remove",
   });
-  COMMISSION_RATES = rates;
-  BYD = rates.byd; GEELY = rates.geely;
-  saveCommissionRates(rates);
+  if (!ok) return;
+  COMMISSION_RATES.__brands = brands.filter(x => x.key !== key);
+  delete COMMISSION_RATES[key];
+  saveCommissionRates(COMMISSION_RATES);
+  renderBrandMgmtBody();
+  lucide.createIcons();
+  toast("Brand removed");
+}
+
+function saveSettings() {
+  const brands = COMMISSION_RATES.__brands || [];
+  brands.forEach(b => {
+    const r = {};
+    RATE_FIELDS.forEach(f => {
+      const rateEl = document.getElementById(`sr-${b.key}-${f.key}`);
+      const qtyEl = document.getElementById(`sq-${b.key}-${f.key}`);
+      r[f.key] = rateEl ? (+rateEl.value || 0) : 0;
+      // Map field key to qty key
+      const qtyKey = f.key === 'units_rate' ? 'units_qty' : f.key === 'scrap' ? 'scrapping_qty' : f.key + '_qty';
+      r[qtyKey] = qtyEl ? (+qtyEl.value || 0) : 0;
+    });
+    const tubesRateEl = document.getElementById(`sr-${b.key}-tubes_rate`);
+    const tubesQtyEl = document.getElementById(`sq-${b.key}-tubes`);
+    r.tubes_rate = tubesRateEl ? (+tubesRateEl.value || 0) : 0;
+    r.tubes_qty = tubesQtyEl ? (+tubesQtyEl.value || 0) : 0;
+    COMMISSION_RATES[b.key] = r;
+  });
+  BYD = COMMISSION_RATES.byd || {};
+  GEELY = COMMISSION_RATES.geely || {};
+  saveCommissionRates(COMMISSION_RATES);
   toast("Commission rates & defaults saved ✓");
 }
 
@@ -1397,7 +1521,7 @@ function exportPDF(pid) {
     body: p.entries.map(e => {
       const c = calcEntry(e, emp.base_rate);
       const holidayType = e.holiday_type || (e.is_holiday ? "onsite" : "none");
-      const type = e.is_offset ? "OFFSET" : holidayType === "offsite" ? "HOL OFF" : holidayType === "onsite" ? "HOL ON" : e.is_halfday ? "HALF" : "FULL";
+      const type = e.is_offset ? "OFFSET" : holidayType === "offsite" ? "HOL OFF" : holidayType === "onsite" ? "HOL ON" : holidayType === "special" ? "HOL SP" : e.is_halfday ? "HALF" : "FULL";
       const otH = +e.ot_hours || 0;
       const otM = +e.ot_minutes || 0;
       // Show qty/div for each field e.g. "11" or "25÷2"
