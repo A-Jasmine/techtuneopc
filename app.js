@@ -134,9 +134,15 @@ function parseVehicleLists(e) {
   return parsed;
 }
 
-// Sum all rows for a vehicle type given its rate
+// Sum all rows for a vehicle type given its rate.
+// Per-row `div` takes priority; fall back to `globalDiv` only when the row
+// has no explicit divisor (i.e. div is 0 / undefined / null).
 function sumVehicleRows(rows, rate, globalDiv) {
-  return (rows || []).reduce((s, row) => s + round2((+row.qty || 0) * rate / safeDiv(+row.div || globalDiv)), 0);
+  return (rows || []).reduce((s, row) => {
+    const rowDiv = +row.div;
+    const divisor = safeDiv(rowDiv > 0 ? rowDiv : globalDiv);
+    return s + round2((+row.qty || 0) * rate / divisor);
+  }, 0);
 }
 
 function getBrandRates(brandKey) {
@@ -1076,6 +1082,35 @@ function updateEntryTotals(pid, eid) {
   if (tot) tot.textContent = "Total: " + peso(c.total);
   const totals = document.querySelector(`#entry-${eid} .entry-totals`);
   if (totals) totals.innerHTML = `<span>Base: <strong>${peso(c.base)}</strong></span><span>Com: <strong>${peso(c.commission)}</strong></span><span>OT: <strong>${peso(c.otPay)}</strong></span><span>Holiday: <strong>${peso(c.holiday)}</strong></span>`;
+
+  // Refresh the banner status badge and step indicator complete/draft state
+  const isComplete = c.total > 0;
+  const statusEl = document.querySelector(`#entry-${eid} .edb-status`);
+  if (statusEl) {
+    statusEl.className = `edb-status ${isComplete ? "edb-status-complete" : "edb-status-draft"}`;
+    statusEl.innerHTML = isComplete
+      ? `<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg> Complete`
+      : `Draft`;
+  }
+  const wrap = document.getElementById("entries-" + pid);
+  const stepEl = wrap && wrap.querySelector(".day-step-indicator");
+  if (stepEl) {
+    stepEl.querySelectorAll(".dsi-btn").forEach(btn => {
+      const m = (btn.getAttribute("onclick") || "").match(/entry-([a-zA-Z0-9_-]+)/);
+      if (m && m[1] === String(eid)) {
+        btn.classList.toggle("dsi-complete", isComplete);
+        const circle = btn.querySelector(".dsi-circle");
+        if (circle) {
+          const dayNum = circle.dataset.day || circle.textContent.replace(/\D/g, "").trim();
+          if (dayNum) circle.dataset.day = dayNum; // persist it
+          circle.innerHTML = isComplete
+            ? `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg><div class="dsi-dot"></div>`
+            : `${dayNum}<div class="dsi-dot"></div>`;
+        }
+      }
+    });
+  }
+
   const t = calcPeriod(p);
   const sum = document.querySelector("#period-detail .period-summary");
   if (sum) sum.innerHTML = `
@@ -1111,7 +1146,7 @@ function renderEntries(pid) {
       return `
         <div class="dsi-item">
           <button class="dsi-btn ${stateClass}" onclick="document.getElementById('entry-${e.id}').scrollIntoView({behavior:'smooth',block:'center'})" title="Go to Day ${dayNum}">
-            <div class="dsi-circle">
+            <div class="dsi-circle" data-day="${dayNum}">
               ${isComplete
                 ? `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg>`
                 : dayNum}
