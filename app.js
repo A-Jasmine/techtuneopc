@@ -217,11 +217,13 @@ function formatOT(h, m) { h = +h || 0; m = +m || 0; if (!h && !m) return "0"; if
 
 // =============== SUPABASE LOAD ===============
 async function loadAll() {
+  const { data: { user } } = await sb.auth.getUser();
+  const uid = user.id;
   const [emps, pers, ents, deds] = await Promise.all([
-    sb.from('employees').select('*').order('created_at'),
-    sb.from('pay_periods').select('*').order('created_at'),
-    sb.from('entries').select('*').order('date'),
-    sb.from('deductions').select('*').order('created_at'),
+    sb.from('employees').select('*').eq('user_id', uid).order('created_at'),
+    sb.from('pay_periods').select('*').eq('user_id', uid).order('created_at'),
+    sb.from('entries').select('*').eq('user_id', uid).order('date'),
+    sb.from('deductions').select('*').eq('user_id', uid).order('created_at'),
   ]);
   if (emps.error) return toast("Load employees failed: " + emps.error.message);
   state.employees = emps.data || [];
@@ -318,7 +320,8 @@ async function saveEmp() {
   if (!name) return toast("Name required");
   const position = document.getElementById("emp-pos").value;
   const base_rate = +document.getElementById("emp-base").value || 1000;
-  const { data, error } = await sb.from('employees').insert({ name, position, base_rate }).select().single();
+  const { data: { user: _u2 } } = await sb.auth.getUser();
+  const { data, error } = await sb.from('employees').insert({ name, position, base_rate, user_id: _u2.id }).select().single();
   if (error) return toast("Save failed: " + error.message);
   state.employees.push(data);
   closeEmpDialog(); renderAll(); toast("Employee added");
@@ -402,7 +405,8 @@ async function addPeriod() {
   const empId = document.getElementById("pp-emp").value;
   if (!empId) return toast("Select an employee first");
   const today = new Date().toISOString().slice(0, 10);
-  const { data, error } = await sb.from('pay_periods').insert({ employee_id: empId, start_date: today, end_date: today, pay_date: today }).select().single();
+  const { data: { user: _u3 } } = await sb.auth.getUser();
+  const { data, error } = await sb.from('pay_periods').insert({ employee_id: empId, start_date: today, end_date: today, pay_date: today, user_id: _u3.id }).select().single();
   if (error) return toast("Create failed: " + error.message);
   state.periods.push({ ...data, entries: [], deductions: [] });
   renderPayroll();
@@ -635,6 +639,8 @@ async function addEntry(pid) {
     gas_allowance: 0, is_holiday: false, is_offset: false, is_halfday: false,
     holiday_type: "none", holiday_notes: "", notes: ""
   };
+  const { data: { user: _u4 } } = await sb.auth.getUser();
+  newEntry.user_id = _u4.id;
   const { data, error } = await sb.from('entries').insert(newEntry).select().single();
   if (error) return toast("Add entry failed: " + error.message);
   p.entries.push(data);
@@ -1332,7 +1338,8 @@ async function onHolidayTypeChange(pid, eid, type) {
 // =============== DEDUCTIONS ===============
 async function addDed(pid) {
   const p = state.periods.find(x => x.id === pid);
-  const { data, error } = await sb.from('deductions').insert({ pay_period_id: pid, label: "", amount: 0 }).select().single();
+  const { data: { user: _u5 } } = await sb.auth.getUser();
+  const { data, error } = await sb.from('deductions').insert({ pay_period_id: pid, label: "", amount: 0, user_id: _u5.id }).select().single();
   if (error) return toast("Add failed: " + error.message);
   p.deductions = p.deductions || [];
   p.deductions.push(data);
