@@ -134,18 +134,62 @@ function parseVehicleLists(e) {
   return parsed;
 }
 
-// Sum all rows for a vehicle type given its rate.
-// Per-row `div` takes priority only when it is explicitly set to > 1
-// (meaning the user chose to split that row among multiple workers).
-// A row.div of 1 (the UI default / "unset") falls back to the entry-level
-// globalDiv (divide_by field), so the entry-level divisor is always honoured
-// unless a row has its own explicit split.
+// Sum rows for a single vehicle type, used only for UI preview per-card.
+// For the actual commission total, calcEntry uses calcCommissionGrouped() below.
 function sumVehicleRows(rows, rate, globalDiv) {
   return (rows || []).reduce((s, row) => {
     const rowDiv = +row.div;
     const divisor = safeDiv(rowDiv > 1 ? rowDiv : globalDiv);
     return s + round2((+row.qty || 0) * rate / divisor);
   }, 0);
+}
+
+// Commission calculation that groups ALL rows (across every vehicle type and
+// custom field) by their divisor, sums raw amounts within each group first,
+// then divides the group total once.
+//
+// Example: 8 units (÷2) + 1 sunroof (÷2) → (8×₱150 + 1×₱50) ÷ 2 = ₱625
+// vs the old per-row approach: 8×₱150÷2 + 1×₱50÷2 = ₱600 + ₱25 = ₱625
+// (same result when rates are uniform, but differs when mixed rates share a div)
+//
+// Rows with div=1 (solo, no split) are each their own "group" and are just
+// added directly: qty × rate.
+function calcCommissionGrouped(vl, r, unitsList, customFieldsForBrand, globalDiv) {
+  // Accumulator: divisor → raw subtotal before dividing
+  const groups = {};
+
+  function addToGroup(qty, rate, rowDiv) {
+    const divisor = safeDiv(rowDiv > 1 ? rowDiv : globalDiv);
+    const key = String(divisor);
+    groups[key] = (groups[key] || 0) + (qty * rate);
+  }
+
+  // Standard vehicle types
+  const typeRates = [
+    { key: "sedan",  rate: r.sedan  || 0 },
+    { key: "mpv",    rate: r.mpv    || 0 },
+    { key: "sunroof",rate: r.sunroof|| 0 },
+    { key: "scrap",  rate: r.scrap  || 0 },
+    { key: "tubes",  rate: TUBE_RATE },
+  ];
+  typeRates.forEach(({ key, rate }) => {
+    (vl[key] || []).forEach(row => addToGroup(+row.qty || 0, rate, +row.div));
+  });
+
+  // Custom fields
+  customFieldsForBrand.forEach(cf => {
+    (vl[cf.key] || []).forEach(row => addToGroup(+row.qty || 0, cf.rate || 0, +row.div));
+  });
+
+  // Units list (legacy units_list field)
+  unitsList.forEach(u => addToGroup(+u.qty || 0, r.units_rate || 0, +u.div));
+
+  // Now divide each group once and sum
+  return round2(
+    Object.entries(groups).reduce((total, [divisor, rawSum]) => {
+      return total + round2(rawSum / safeDiv(+divisor));
+    }, 0)
+  );
 }
 
 function getBrandRates(brandKey) {
@@ -164,27 +208,14 @@ function calcEntry(e, baseRate) {
   // Vehicle lists (multi-row dynamic fields)
   const vl = parseVehicleLists(e);
 
-  // Units list: each row has qty and div, rate comes from brand's units_rate
+  // Units list and custom fields
   const unitsList = parseUnitsList(e);
-  const unitsCommission = unitsList.reduce((sum, u) => {
-    return sum + round2((+u.qty || 0) * (r.units_rate || 0) / safeDiv(+u.div || 1));
-  }, 0);
-
-  // Custom field commissions
   const customFieldsForBrand = getCustomFields(e.brand);
-  const customCommission = customFieldsForBrand.reduce((s, cf) => {
-    return s + sumVehicleRows(vl[cf.key] || [], cf.rate || 0, globalDiv);
-  }, 0);
 
-  const commission = round2(
-    sumVehicleRows(vl.sedan, r.sedan || 0, globalDiv) +
-    sumVehicleRows(vl.mpv, r.mpv || 0, globalDiv) +
-    sumVehicleRows(vl.sunroof, r.sunroof || 0, globalDiv) +
-    sumVehicleRows(vl.scrap, r.scrap || 0, globalDiv) +
-    sumVehicleRows(vl.tubes, TUBE_RATE, globalDiv) +
-    unitsCommission +
-    customCommission
-  );
+  // Commission: group all rows across ALL vehicle types by their divisor.
+  // Rows sharing the same div are summed first, then divided once.
+  // e.g. 8 units(÷2) + 1 sunroof(÷2) = (1200+50)÷2 = 625, not 600+25.
+  const commission = calcCommissionGrouped(vl, r, unitsList, customFieldsForBrand, globalDiv);
   const otHrs = (+e.ot_hours || 0) + (+e.ot_minutes || 0) / 60;
   const otPay = round2(otHrs * (+e.ot_rate || otRateFromBase(baseRate)));
   // holiday_type: "onsite" = full pay + ₱1000 bonus, "offsite" = ₱1000 bonus only,
