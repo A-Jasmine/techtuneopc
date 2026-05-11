@@ -2055,222 +2055,94 @@ textarea:focus {
 .history-table tr:last-child td { border-bottom: none; }
 .history-table tr:hover td { background: var(--surface-2); }
 
-/* ══════════════════════════════════════════
-   COMMISSION FIELD CARDS — clean redesign
-   ══════════════════════════════════════════ */
-
-/* Outer grid — 6 equal columns that wrap on small screens */
+/* ── Commission per-field divide grid ── */
 .commission-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
-  gap: 12px;
-  margin-top: 4px;
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  gap: 10px;
 }
-
-/* Each vehicle / units card */
-.cf-card {
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: 14px;
-  padding: 14px 16px 12px;
+/* Units container — normal grid cell, sits beside Tubes Qty */
+.comm-field-wrap--units {
+  display: contents; /* let each unit row be a direct grid item */
+  padding: 0;
+  background: none;
+  border: none;
+}
+/* Each individual unit row — normal grid cell matching other comm-field-wraps */
+.comm-field-wrap--unit-row {
   display: flex;
   flex-direction: column;
-  gap: 10px;
-  transition: border-color .18s, box-shadow .18s;
+  gap: 4px;
 }
-.cf-card:hover {
-  border-color: var(--border-hi);
-  box-shadow: 0 2px 12px rgba(0,0,0,.06);
+.comm-field-wrap--unit-row label {
+  margin: 0;
 }
-
-/* Card header row: label + rate badge + add button */
-.cf-header {
+/* Add-unit button — normal grid cell, button aligns with input row */
+.comm-field-wrap--add-unit {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.comm-field-wrap--add-unit .btn {
+  width: 100%;
+  font-size: 11px;
+  padding: 6px 8px;
+  justify-content: center;
+}
+.comm-field-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+/* Label: title on top, full-width input below */
+.comm-field-wrap > label {
+  margin: 0;
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: stretch !important;
+  gap: 4px;
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .6px;
+  color: var(--text-dim);
+  white-space: nowrap;
+}
+.comm-field-wrap > label input[type="number"] {
+  width: 100% !important;
+  text-align: center;
+  padding: 6px 8px;
+  font-size: 13px;
+}
+/* Unit rows already column — no extra override needed */
+.comm-field-wrap--unit-row > label {
+  white-space: normal;
+}
+.div-row {
   display: flex;
   align-items: center;
   gap: 6px;
 }
-.cf-label {
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: .5px;
-  color: var(--text);
-  white-space: nowrap;
-}
-.cf-rate {
+.div-label {
   font-size: 10px;
-  font-weight: 500;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .6px;
   color: var(--text-dim);
-  background: var(--surface-3);
-  border: 1px solid var(--border);
-  border-radius: 20px;
-  padding: 1px 7px;
   white-space: nowrap;
 }
-.cf-add-btn {
-  margin-left: auto;
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  padding: 3px 9px;
-  border-radius: 20px;
-  border: 1.5px solid var(--blue-border);
-  background: var(--blue-bg);
-  color: var(--blue);
-  font-size: 10px;
-  font-weight: 700;
-  cursor: pointer;
-  transition: all .15s ease;
-  white-space: nowrap;
-  letter-spacing: .3px;
-  flex-shrink: 0;
-}
-.cf-add-btn:hover {
-  background: var(--blue);
-  color: #fff;
-  border-color: var(--blue);
-}
-.cf-add-btn:disabled {
-  opacity: .4;
-  cursor: not-allowed;
-}
-
-/* Each quantity + workers row */
-.cf-row {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  background: var(--surface-2);
-  border: 1px solid var(--border);
-  border-radius: 10px;
-  padding: 6px 10px;
-}
-.cf-row + .cf-row {
-  border-style: dashed;
-}
-
-/* Big quantity input */
-.cf-qty-input {
-  width: 60px !important;
-  flex-shrink: 0;
-  text-align: center !important;
-  font-size: 18px !important;
-  font-weight: 700 !important;
-  font-family: var(--mono) !important;
-  padding: 4px 6px !important;
-  border: none !important;
-  background: transparent !important;
-  box-shadow: none !important;
-  color: var(--text) !important;
-  border-radius: 6px !important;
-}
-.cf-qty-input:focus {
-  outline: none !important;
-  background: var(--surface) !important;
-  box-shadow: 0 0 0 2px var(--blue-border) !important;
-}
-.cf-qty-input::placeholder { color: var(--muted) !important; }
-
-/* Divider wrapper */
-.cf-divider-wrap {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
+.div-row select {
   flex: 1;
+  font-size: 12px;
+  padding: 4px 6px;
   min-width: 0;
 }
-.cf-divider-label {
-  font-size: 9px;
-  font-weight: 700;
-  letter-spacing: .6px;
-  text-transform: uppercase;
-  color: var(--text-dim);
-}
-.cf-divider-select {
-  font-size: 12px !important;
-  padding: 4px 8px !important;
-  border-radius: 7px !important;
-  width: 100% !important;
-  border-color: var(--border) !important;
-  background: var(--surface) !important;
-}
-
-/* Remove row button */
-.cf-remove-btn {
-  width: 22px;
-  height: 22px;
-  border-radius: 50%;
-  border: 1px solid var(--border);
-  background: none;
-  color: var(--text-dim);
-  cursor: pointer;
-  display: grid;
-  place-items: center;
-  flex-shrink: 0;
-  transition: all .15s ease;
-}
-.cf-remove-btn:hover {
-  border-color: var(--danger);
-  color: var(--danger);
-  background: #fef2f2;
-}
-.cf-remove-placeholder {
-  width: 22px;
-  flex-shrink: 0;
-}
-
-/* Brand bar above the grid */
-.cf-brand-bar {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 10px 14px;
-  background: var(--surface-2);
-  border: 1px solid var(--border);
-  border-radius: 10px;
-  margin-bottom: 14px;
-  flex-wrap: wrap;
-}
-.cf-brand-label {
-  display: flex !important;
-  flex-direction: row !important;
-  align-items: center !important;
-  gap: 8px !important;
-  margin: 0 !important;
-  font-size: 10px !important;
-  font-weight: 700 !important;
-  letter-spacing: .8px !important;
-  text-transform: uppercase !important;
-  color: var(--text-dim) !important;
-  white-space: nowrap;
-}
-.cf-brand-label select {
-  font-size: 13px !important;
-  font-weight: 600 !important;
-  padding: 6px 12px !important;
-  width: auto !important;
-  min-width: 120px;
-}
-
-/* Legacy compat — keep .brand-rate-hint working */
 .brand-rate-hint {
   background: var(--surface-2);
   border: 1px solid var(--border);
   border-radius: 8px;
   padding: 4px 10px;
 }
-
-/* Dark mode overrides for cf cards */
-[data-theme="dark"] .cf-card {
-  background: var(--surface-2);
-}
-[data-theme="dark"] .cf-row {
-  background: var(--surface-3);
-}
-[data-theme="dark"] .cf-remove-btn:hover {
-  background: #2a1010;
-}
-
-
 
 /* ── Offsite holiday entry greyed overlay ── */
 .entry-offsite {
@@ -2434,62 +2306,3 @@ textarea:focus {
 .fnp-top-btn:hover { background: rgba(255,255,255,.22); }
 .fnp-top-btn i { width: 14px; height: 14px; }
 
-
-/* ── Holiday Detail Card (improved layout) ── */
-.holiday-detail-card {
-  border-radius: 8px;
-  padding: 10px 12px;
-  border: 1px solid var(--border);
-  background: var(--bg-alt, var(--surface));
-  margin-top: 2px;
-}
-.holiday-detail-card.htype-card-onsite { border-color: var(--green); background: var(--green-bg); }
-.holiday-detail-card.htype-card-offsite { border-color: var(--purple); background: var(--purple-bg); }
-.holiday-detail-card.htype-card-special { border-color: var(--amber); background: var(--amber-bg); }
-.holiday-detail-row {
-  display: grid;
-  grid-template-columns: 1fr auto;
-  gap: 10px;
-  align-items: end;
-}
-.holiday-detail-field {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-.holiday-detail-label {
-  font-size: 10px;
-  font-weight: 700;
-  letter-spacing: .7px;
-  text-transform: uppercase;
-  color: var(--text-dim);
-}
-.holiday-pay-chip {
-  flex-shrink: 0;
-  align-items: flex-end;
-}
-.holiday-pay-badge {
-  display: inline-flex;
-  align-items: center;
-  padding: 4px 10px;
-  border-radius: 20px;
-  font-size: 11px;
-  font-weight: 700;
-  white-space: nowrap;
-  letter-spacing: .3px;
-}
-.hbadge-onsite  { background: var(--green-bg); color: var(--green); border: 1px solid var(--green); }
-.hbadge-offsite { background: var(--purple-bg); color: var(--purple); border: 1px solid var(--purple); }
-.hbadge-special { background: var(--amber-bg); color: var(--amber); border: 1px solid var(--amber); }
-
-@media (max-width: 520px) {
-  .holiday-detail-row { grid-template-columns: 1fr; }
-  .holiday-pay-chip { align-items: flex-start; }
-}
-
-/* ── Custom field accent in Settings ── */
-#brand-mgmt-body input[id^="scf-name-"] {
-  color: var(--accent);
-  border-color: var(--accent);
-  font-weight: 600;
-}
