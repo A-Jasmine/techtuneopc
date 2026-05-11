@@ -57,7 +57,6 @@ let BYD = COMMISSION_RATES.byd;
 let GEELY = COMMISSION_RATES.geely;
 const TUBE_RATE = 50, HOLIDAY_AMT = 1000, OFFSET_AMT = 1000;
 const SPECIAL_HOLIDAY_PCT = 0.30; // 30% of base rate
-// Regular holiday: employee works, gets base pay + 100% of base rate as bonus (total = 2× base)
 const BASE_RATE_OPTIONS = [1000, 1100, 1200];
 const LOCATIONS = [
   "Fairview", "Commonwealth", "Batangas City", "Subic", "BGC",
@@ -75,7 +74,7 @@ function calcEntryBase(e, baseRate) {
   // holiday_type "offsite" = employee didn't come in; only holiday bonus applies, no base pay
   const holidayType = e.holiday_type || (e.is_holiday ? "onsite" : "none");
   if (holidayType === "offsite") return 0;
-  // regular/special/onsite: employee came in, gets full base pay (bonus calculated separately)
+  // special_holiday: employee came in, gets base pay + 30% bonus
   const br = baseRate || 1000;
   return e.is_halfday ? round2(br / 2) : br;
 }
@@ -94,16 +93,6 @@ function parseUnitsList(e) {
 // Stored as JSON string in entry.vehicle_lists
 const VEHICLE_TYPES = ["sedan", "mpv", "sunroof", "scrap", "tubes"];
 const VEHICLE_LABELS = { sedan: "Sedan/SUV", mpv: "MPV", sunroof: "Sunroof", scrap: "Scrapping", tubes: "Tubes" };
-// SVG icon paths for each vehicle type
-const VEHICLE_ICONS = {
-  sedan: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 17H3v-5l2.5-4.5A2 2 0 0 1 7.24 6h9.52a2 2 0 0 1 1.74 1.5L21 12v5h-2"/><circle cx="7.5" cy="17.5" r="1.5"/><circle cx="16.5" cy="17.5" r="1.5"/><path d="M5 12h14"/></svg>`,
-  mpv:   `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="7" width="20" height="10" rx="2"/><path d="M6 7V5a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v2"/><circle cx="7" cy="17" r="1"/><circle cx="17" cy="17" r="1"/><path d="M2 12h20"/></svg>`,
-  sunroof: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/></svg>`,
-  scrap:  `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>`,
-  tubes:  `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="2" x2="12" y2="22"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>`,
-  units:  `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>`,
-  custom: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>`
-};
 
 function parseVehicleLists(e) {
   let parsed = null;
@@ -134,15 +123,9 @@ function parseVehicleLists(e) {
   return parsed;
 }
 
-// Sum all rows for a vehicle type given its rate.
-// Per-row `div` takes priority; fall back to `globalDiv` only when the row
-// has no explicit divisor (i.e. div is 0 / undefined / null).
+// Sum all rows for a vehicle type given its rate
 function sumVehicleRows(rows, rate, globalDiv) {
-  return (rows || []).reduce((s, row) => {
-    const rowDiv = +row.div;
-    const divisor = safeDiv(rowDiv > 0 ? rowDiv : globalDiv);
-    return s + round2((+row.qty || 0) * rate / divisor);
-  }, 0);
+  return (rows || []).reduce((s, row) => s + round2((+row.qty || 0) * rate / safeDiv(+row.div || globalDiv)), 0);
 }
 
 function getBrandRates(brandKey) {
@@ -184,17 +167,13 @@ function calcEntry(e, baseRate) {
   );
   const otHrs = (+e.ot_hours || 0) + (+e.ot_minutes || 0) / 60;
   const otPay = round2(otHrs * (+e.ot_rate || otRateFromBase(baseRate)));
-  // holiday_type: "onsite" = full pay + ₱1000 bonus, "offsite" = ₱1000 bonus only,
-  // "special" = +30% of base rate, "regular" = +100% of base rate (paid double)
+  // holiday_type: "onsite" = full pay + bonus, "offsite" = bonus only, "special" = +30% of base rate
   const holidayType = e.holiday_type || (e.is_holiday ? "onsite" : "none");
   let holiday = 0;
   if (holidayType === "onsite" || holidayType === "offsite") {
     holiday = HOLIDAY_AMT;
   } else if (holidayType === "special") {
     holiday = round2((baseRate || 1000) * SPECIAL_HOLIDAY_PCT);
-  } else if (holidayType === "regular") {
-    // Regular holiday: 100% of the daily base rate (so total = 2× base)
-    holiday = round2(e.is_halfday ? (baseRate || 1000) / 2 : (baseRate || 1000));
   }
   const base = calcEntryBase(e, baseRate);
   const gas = +e.gas_allowance || 0;
@@ -692,26 +671,6 @@ async function updateEntry(pid, eid, key, val) {
   if (totals) totals.innerHTML = `<span>Base: <strong>${peso(c.base)}</strong></span><span>Com: <strong>${peso(c.commission)}</strong></span><span>OT: <strong>${peso(c.otPay)}</strong></span><span>Holiday: <strong>${peso(c.holiday)}</strong></span>`;
   const baseEl = document.querySelector(`#entry-${eid} .base-display`);
   if (baseEl) baseEl.textContent = peso(c.base);
-
-  // Live-update banner date + step indicator label when date field changes
-  if (key === "date") {
-    const bannerCenter = document.querySelector(`#entry-${eid} .edb-center`);
-    if (bannerCenter) {
-      const formatted = val ? new Date(val + "T00:00:00").toLocaleDateString("en-PH", { weekday: "long", month: "long", day: "numeric", year: "numeric" }) : "—";
-      bannerCenter.textContent = formatted;
-    }
-    const wrap = document.getElementById("entries-" + pid);
-    const stepEl = wrap && wrap.querySelector(".day-step-indicator");
-    if (stepEl) {
-      stepEl.querySelectorAll(".dsi-btn").forEach(btn => {
-        const m = (btn.getAttribute("onclick") || "").match(/entry-([a-zA-Z0-9_-]+)/);
-        if (m && m[1] === String(eid)) {
-          const labelEl = btn.querySelector(".dsi-label");
-          if (labelEl) labelEl.textContent = val ? new Date(val + "T00:00:00").toLocaleDateString("en-PH", { month: "short", day: "numeric" }) : "—";
-        }
-      });
-    }
-  }
   const t = calcPeriod(p);
   const sum = document.querySelector("#period-detail .period-summary");
   if (sum) sum.innerHTML = `
@@ -778,79 +737,44 @@ function renderVehicleListUI(pid, eid, type) {
   const rateMap = { sedan: r.sedan || 0, mpv: r.mpv || 0, sunroof: r.sunroof || 0, scrap: r.scrap || 0, tubes: TUBE_RATE };
   const rate = rateMap[type] || 0;
   const label = VEHICLE_LABELS[type] || type;
-  const icon = VEHICLE_ICONS[type] || VEHICLE_ICONS.custom;
   const isOffsite = (e.holiday_type || (e.is_holiday ? "onsite" : "none")) === "offsite";
   const dis = isOffsite ? "disabled" : "";
-  const totalQty = rows.reduce((s, row) => s + (+row.qty || 0), 0);
-  const hasQty = totalQty > 0;
 
-  wrap.setAttribute("data-active", hasQty ? "1" : "0");
+  // Header row
+  const header = `
+    <div class="cf-header">
+      <span class="cf-label">${label}</span>
+      <span class="cf-rate">₱${rate}/ea</span>
+      <button type="button" class="cf-add-btn" title="Add another ${label}" ${dis} onclick="addVehicleRow('${pid}','${eid}','${type}')">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+        Add
+      </button>
+    </div>`;
 
   const rowsHTML = rows.map((row, i) => {
-    const canRemove = !(i === 0 && rows.length === 1);
     const divOpts = Array.from({length:10},(_,k)=>k+1).map(n=>`<option value="${n}" ${(+row.div||1)===n?"selected":""}>${String.fromCharCode(247)}${n}</option>`).join("");
+    const canRemove = !(i === 0 && rows.length === 1);
     return `
-    <div class="cf-row${i > 0 ? " cf-row-extra" : ""}">
-      <div class="cf-stepper">
-        <button type="button" class="cf-step-btn cf-step-minus" ${dis} title="Decrease"
-          onclick="cfStepQty('${pid}','${eid}','${type}',${i},-1,this)">
-          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8"><line x1="5" y1="12" x2="19" y2="12"/></svg>
-        </button>
-        <input class="cf-qty-input" type="number" min="0" value="${row.qty || 0}" placeholder="0" ${dis}
-          onchange="updateVehicleRow('${pid}','${eid}','${type}',${i},'qty',this.value);refreshCfCardState('${eid}','${type}')">
-        <button type="button" class="cf-step-btn cf-step-plus" ${dis} title="Increase"
-          onclick="cfStepQty('${pid}','${eid}','${type}',${i},1,this)">
-          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-        </button>
-      </div>
-      <div class="cf-workers-col">
+    <div class="cf-row">
+      <input class="cf-qty-input" type="number" min="0" value="${row.qty || 0}" placeholder="0" ${dis}
+        onchange="updateVehicleRow('${pid}','${eid}','${type}',${i},'qty',this.value)">
+      <div class="cf-divider-wrap">
         <span class="cf-divider-label">÷ workers</span>
-        <select class="cf-divider-select" ${dis}
+        <select class="cf-divider-select" title="Divide by workers" ${dis}
           onchange="updateVehicleRow('${pid}','${eid}','${type}',${i},'div',this.value)">${divOpts}</select>
       </div>
       ${canRemove
-        ? `<button type="button" class="cf-remove-btn" title="Remove row" ${dis}
+        ? `<button type="button" class="cf-remove-btn" title="Remove" ${dis}
              onclick="removeVehicleRow('${pid}','${eid}','${type}',${i})">
-             <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
            </button>`
-        : ""}
+        : `<span class="cf-remove-placeholder"></span>`}
     </div>`;
   }).join("");
 
-  wrap.innerHTML = `
-    <div class="cf-card-header">
-      <div class="cf-card-icon">${icon}</div>
-      <div class="cf-card-meta">
-        <span class="cf-label">${label}</span>
-        <span class="cf-rate">₱${rate.toLocaleString()}/ea</span>
-      </div>
-      <button type="button" class="cf-add-btn" ${dis} title="Add split row"
-        onclick="addVehicleRow('${pid}','${eid}','${type}')">
-        <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-        Split
-      </button>
-    </div>
-    <div class="cf-divider-line"></div>
-    <div class="cf-rows-wrap">${rowsHTML}</div>`;
+  wrap.innerHTML = header + rowsHTML;
   lucide.createIcons();
 }
-// Stepper helpers for cf cards
-function cfStepQty(pid, eid, type, idx, delta, btn) {
-  const wrap = btn.closest(".cf-row");
-  const inp = wrap.querySelector(".cf-qty-input");
-  const newVal = Math.max(0, (+inp.value || 0) + delta);
-  inp.value = newVal;
-  updateVehicleRow(pid, eid, type, idx, "qty", newVal);
-  refreshCfCardState(eid, type);
-}
-function refreshCfCardState(eid, type) {
-  const card = document.getElementById(`vlist-${eid}-${type}`);
-  if (!card) return;
-  const inputs = card.querySelectorAll(".cf-qty-input");
-  const totalQty = Array.from(inputs).reduce((s, inp) => s + (+inp.value || 0), 0);
-  card.setAttribute("data-active", totalQty > 0 ? "1" : "0");
-}
-
 // Renders all custom field vehicle-list UIs for an entry (when brand changes or entry loads)
 function renderCustomFieldListsUI(pid, eid) {
   const p = state.periods.find(x => x.id === pid);
@@ -858,75 +782,47 @@ function renderCustomFieldListsUI(pid, eid) {
   if (!e) return;
   const customFields = getCustomFields(e.brand);
   customFields.forEach(cf => {
+    // Ensure the wrapper exists; it may have been created in renderEntries HTML
     const wrap = document.getElementById(`vlist-${eid}-${cf.key}`);
     if (!wrap) return;
     const vl = parseVehicleLists(e);
     const rows = vl[cf.key] || [{ qty: 0, div: 1 }];
     const rate = cf.rate || 0;
     const label = cf.label || cf.key;
-    const icon = VEHICLE_ICONS.custom;
     const isOffsite = (e.holiday_type || (e.is_holiday ? "onsite" : "none")) === "offsite";
     const dis = isOffsite ? "disabled" : "";
-    const totalQty = rows.reduce((s, row) => s + (+row.qty || 0), 0);
-    wrap.setAttribute("data-active", totalQty > 0 ? "1" : "0");
+    const header = `
+      <div class="cf-header">
+        <span class="cf-label">${label}</span>
+        <span class="cf-rate">₱${rate}/ea</span>
+        <button type="button" class="cf-add-btn" title="Add row" ${dis}
+          onclick="addCustomFieldRow('${pid}','${eid}','${cf.key}')">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>Add
+        </button>
+      </div>`;
     const rowsHTML = rows.map((row, i) => {
-      const canRemove = !(i === 0 && rows.length === 1);
       const divOpts = Array.from({length:10},(_,k)=>k+1).map(n=>`<option value="${n}" ${(+row.div||1)===n?"selected":""}>${String.fromCharCode(247)}${n}</option>`).join("");
+      const canRemove = !(i === 0 && rows.length === 1);
       return `
-      <div class="cf-row${i > 0 ? " cf-row-extra" : ""}">
-        <div class="cf-stepper">
-          <button type="button" class="cf-step-btn cf-step-minus" ${dis}
-            onclick="cfStepCustom('${pid}','${eid}','${cf.key}',${i},-1,this)">
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8"><line x1="5" y1="12" x2="19" y2="12"/></svg>
-          </button>
-          <input class="cf-qty-input" type="number" min="0" value="${row.qty||0}" placeholder="0" ${dis}
-            onchange="updateCustomFieldRow('${pid}','${eid}','${cf.key}',${i},'qty',this.value);refreshCfCustomState('${eid}','${cf.key}')">
-          <button type="button" class="cf-step-btn cf-step-plus" ${dis}
-            onclick="cfStepCustom('${pid}','${eid}','${cf.key}',${i},1,this)">
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-          </button>
-        </div>
-        <div class="cf-workers-col">
+      <div class="cf-row">
+        <input class="cf-qty-input" type="number" min="0" value="${row.qty||0}" placeholder="0" ${dis}
+          onchange="updateCustomFieldRow('${pid}','${eid}','${cf.key}',${i},'qty',this.value)">
+        <div class="cf-divider-wrap">
           <span class="cf-divider-label">÷ workers</span>
           <select class="cf-divider-select" ${dis}
             onchange="updateCustomFieldRow('${pid}','${eid}','${cf.key}',${i},'div',this.value)">${divOpts}</select>
         </div>
-        ${canRemove ? `<button type="button" class="cf-remove-btn" ${dis}
-            onclick="removeCustomFieldRow('${pid}','${eid}','${cf.key}',${i})">
-            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-          </button>` : ""}
+        ${canRemove
+          ? `<button type="button" class="cf-remove-btn" ${dis}
+               onclick="removeCustomFieldRow('${pid}','${eid}','${cf.key}',${i})">
+               <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+             </button>`
+          : `<span class="cf-remove-placeholder"></span>`}
       </div>`;
     }).join("");
-    wrap.innerHTML = `
-      <div class="cf-card-header">
-        <div class="cf-card-icon cf-card-icon--custom">${icon}</div>
-        <div class="cf-card-meta">
-          <span class="cf-label">${label}</span>
-          <span class="cf-rate">₱${rate.toLocaleString()}/ea</span>
-        </div>
-        <button type="button" class="cf-add-btn" ${dis} onclick="addCustomFieldRow('${pid}','${eid}','${cf.key}')">
-          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>Split
-        </button>
-      </div>
-      <div class="cf-divider-line"></div>
-      <div class="cf-rows-wrap">${rowsHTML}</div>`;
+    wrap.innerHTML = header + rowsHTML;
   });
   lucide.createIcons();
-}
-function cfStepCustom(pid, eid, cfKey, idx, delta, btn) {
-  const wrap = btn.closest(".cf-row");
-  const inp = wrap.querySelector(".cf-qty-input");
-  const newVal = Math.max(0, (+inp.value || 0) + delta);
-  inp.value = newVal;
-  updateCustomFieldRow(pid, eid, cfKey, idx, "qty", newVal);
-  refreshCfCustomState(eid, cfKey);
-}
-function refreshCfCustomState(eid, cfKey) {
-  const card = document.getElementById(`vlist-${eid}-${cfKey}`);
-  if (!card) return;
-  const inputs = card.querySelectorAll(".cf-qty-input");
-  const totalQty = Array.from(inputs).reduce((s, inp) => s + (+inp.value || 0), 0);
-  card.setAttribute("data-active", totalQty > 0 ? "1" : "0");
 }
 
 function addCustomFieldRow(pid, eid, cfKey) {
@@ -1010,68 +906,37 @@ function renderUnitsListUI(pid, eid) {
     if (e2) { e2.units_list = displayList; }
   }
 
-  const totalUnitsQty = displayList.reduce((s, u) => s + (+u.qty || 0), 0);
-  wrap.setAttribute("data-active", totalUnitsQty > 0 ? "1" : "0");
   wrap.innerHTML = `
-    <div class="cf-card-header">
-      <div class="cf-card-icon cf-card-icon--units">${VEHICLE_ICONS.units}</div>
-      <div class="cf-card-meta">
-        <span class="cf-label">Units Qty</span>
-        <span class="cf-rate">₱${(r.units_rate || 0).toLocaleString()}/ea</span>
-      </div>
-      <button type="button" class="cf-add-btn" ${disAttr} onclick="addUnitsRow('${pid}','${eid}')">
-        <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>Split
+    <div class="cf-header">
+      <span class="cf-label">Units Qty</span>
+      <span class="cf-rate">₱${(r.units_rate || 0).toLocaleString()}/ea</span>
+      <button type="button" class="cf-add-btn" title="Add another Unit" ${disAttr} onclick="addUnitsRow('${pid}','${eid}')">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+        Add
       </button>
     </div>
-    <div class="cf-divider-line"></div>
-    <div class="cf-rows-wrap">
     ${displayList.map((u, i) => {
       const canRemove = !(i === 0 && displayList.length === 1);
       return `
-      <div class="cf-row${i > 0 ? " cf-row-extra" : ""}">
-        <div class="cf-stepper">
-          <button type="button" class="cf-step-btn cf-step-minus" ${disAttr}
-            onclick="cfStepUnits('${pid}','${eid}',${i},-1,this)">
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8"><line x1="5" y1="12" x2="19" y2="12"/></svg>
-          </button>
-          <input class="cf-qty-input" type="number" min="0" value="${u.qty || 0}" placeholder="0" ${disAttr}
-            onchange="updateUnitsRow('${pid}','${eid}',${i},'qty',this.value);refreshCfUnitsState('${eid}')">
-          <button type="button" class="cf-step-btn cf-step-plus" ${disAttr}
-            onclick="cfStepUnits('${pid}','${eid}',${i},1,this)">
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-          </button>
-        </div>
-        <div class="cf-workers-col">
+      <div class="cf-row">
+        <input class="cf-qty-input" type="number" min="0" value="${u.qty || 0}" placeholder="0" ${disAttr}
+          onchange="updateUnitsRow('${pid}','${eid}',${i},'qty',this.value)">
+        <div class="cf-divider-wrap">
           <span class="cf-divider-label">÷ workers</span>
-          <select class="cf-divider-select" ${disAttr}
+          <select class="cf-divider-select" title="Divide by workers" ${disAttr}
             onchange="updateUnitsRow('${pid}','${eid}',${i},'div',this.value)">
             ${Array.from({length:10},(_,k)=>k+1).map(n=>`<option value="${n}" ${(+u.div||1)===n?"selected":""}>${String.fromCharCode(247)}${n}</option>`).join("")}
           </select>
         </div>
-        ${canRemove ? `<button type="button" class="cf-remove-btn" ${disAttr}
-            onclick="removeUnitsRow('${pid}','${eid}',${i})">
-            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-          </button>` : ""}
+        ${canRemove
+          ? `<button type="button" class="cf-remove-btn" title="Remove" ${disAttr}
+               onclick="removeUnitsRow('${pid}','${eid}',${i})">
+               <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+             </button>`
+          : `<span class="cf-remove-placeholder"></span>`}
       </div>`;
-    }).join("")}
-    </div>`;
+    }).join("")}`;
   lucide.createIcons();
-}
-function cfStepUnits(pid, eid, idx, delta, btn) {
-  const wrap = btn.closest(".cf-row");
-  const inp = wrap.querySelector(".cf-qty-input");
-  const newVal = Math.max(0, (+inp.value || 0) + delta);
-  inp.value = newVal;
-  updateUnitsRow(pid, eid, idx, "qty", newVal);
-  refreshCfUnitsState(eid);
-  updateEntryTotals(pid, eid);
-}
-function refreshCfUnitsState(eid) {
-  const card = document.getElementById(`units-list-${eid}`);
-  if (!card) return;
-  const inputs = card.querySelectorAll(".cf-qty-input");
-  const totalQty = Array.from(inputs).reduce((s, inp) => s + (+inp.value || 0), 0);
-  card.setAttribute("data-active", totalQty > 0 ? "1" : "0");
 }
 function updateEntryTotals(pid, eid) {
   const p = state.periods.find(x => x.id === pid);
@@ -1082,35 +947,6 @@ function updateEntryTotals(pid, eid) {
   if (tot) tot.textContent = "Total: " + peso(c.total);
   const totals = document.querySelector(`#entry-${eid} .entry-totals`);
   if (totals) totals.innerHTML = `<span>Base: <strong>${peso(c.base)}</strong></span><span>Com: <strong>${peso(c.commission)}</strong></span><span>OT: <strong>${peso(c.otPay)}</strong></span><span>Holiday: <strong>${peso(c.holiday)}</strong></span>`;
-
-  // Refresh the banner status badge and step indicator complete/draft state
-  const isComplete = c.total > 0;
-  const statusEl = document.querySelector(`#entry-${eid} .edb-status`);
-  if (statusEl) {
-    statusEl.className = `edb-status ${isComplete ? "edb-status-complete" : "edb-status-draft"}`;
-    statusEl.innerHTML = isComplete
-      ? `<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg> Complete`
-      : `Draft`;
-  }
-  const wrap = document.getElementById("entries-" + pid);
-  const stepEl = wrap && wrap.querySelector(".day-step-indicator");
-  if (stepEl) {
-    stepEl.querySelectorAll(".dsi-btn").forEach(btn => {
-      const m = (btn.getAttribute("onclick") || "").match(/entry-([a-zA-Z0-9_-]+)/);
-      if (m && m[1] === String(eid)) {
-        btn.classList.toggle("dsi-complete", isComplete);
-        const circle = btn.querySelector(".dsi-circle");
-        if (circle) {
-          const dayNum = circle.dataset.day || circle.textContent.replace(/\D/g, "").trim();
-          if (dayNum) circle.dataset.day = dayNum; // persist it
-          circle.innerHTML = isComplete
-            ? `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg><div class="dsi-dot"></div>`
-            : `${dayNum}<div class="dsi-dot"></div>`;
-        }
-      }
-    });
-  }
-
   const t = calcPeriod(p);
   const sum = document.querySelector("#period-detail .period-summary");
   if (sum) sum.innerHTML = `
@@ -1130,37 +966,7 @@ function renderEntries(pid) {
   const emp = state.employees.find(x => x.id === p.employee_id);
   const baseRate = emp.base_rate || 1000;
   const wrap = document.getElementById("entries-" + pid);
-
-  // ── Day Step Indicator ──────────────────────────────────────
-  // Build step bubbles — one per entry, showing Day N, date short, active/complete
-  const buildStepIndicator = () => {
-    if (p.entries.length === 0) return "";
-    const items = p.entries.map((e, idx) => {
-      const dayNum = idx + 1;
-      const dateShort = e.date ? new Date(e.date + "T00:00:00").toLocaleDateString("en-PH", { month: "short", day: "numeric" }) : `Day ${dayNum}`;
-      // "Complete" = has a non-zero total
-      const c2 = calcEntry(e, baseRate);
-      const isComplete = c2.total > 0;
-      const stateClass = isComplete ? "dsi-complete" : "";
-      const connector = idx < p.entries.length - 1 ? `<div class="dsi-connector"></div>` : "";
-      return `
-        <div class="dsi-item">
-          <button class="dsi-btn ${stateClass}" onclick="document.getElementById('entry-${e.id}').scrollIntoView({behavior:'smooth',block:'center'})" title="Go to Day ${dayNum}">
-            <div class="dsi-circle" data-day="${dayNum}">
-              ${isComplete
-                ? `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg>`
-                : dayNum}
-              <div class="dsi-dot"></div>
-            </div>
-            <span class="dsi-label">${dateShort}</span>
-          </button>
-          ${connector}
-        </div>`;
-    }).join("");
-    return `<div class="day-step-indicator">${items}</div>`;
-  };
-
-  wrap.innerHTML = buildStepIndicator() + p.entries.map((e, entryIdx) => {
+  wrap.innerHTML = p.entries.map(e => {
     const c = calcEntry(e, baseRate);
     const holidayType = e.holiday_type || (e.is_holiday ? "onsite" : "none");
     const isOffsite = holidayType === "offsite";
@@ -1168,8 +974,7 @@ function renderEntries(pid) {
       : holidayType === "offsite" ? `Holiday Offsite · ₱0 base (holiday bonus only)`
         : holidayType === "onsite" ? (e.is_halfday ? `Holiday Onsite · Half day · ₱${(baseRate / 2).toLocaleString()}` : `Holiday Onsite · ₱${baseRate.toLocaleString()}`)
           : holidayType === "special" ? (e.is_halfday ? `Special Holiday · Half day · ₱${(baseRate / 2).toLocaleString()} + ${Math.round(baseRate * 0.3)}` : `Special Holiday · ₱${baseRate.toLocaleString()} + ₱${Math.round(baseRate * 0.3)} bonus`)
-            : holidayType === "regular" ? (e.is_halfday ? `Regular Holiday · Half day · ₱${(baseRate / 2).toLocaleString()} + ₱${(baseRate / 2).toLocaleString()} bonus` : `Regular Holiday · ₱${baseRate.toLocaleString()} + ₱${baseRate.toLocaleString()} bonus (2× pay)`)
-              : e.is_halfday ? `Half day · ₱${(baseRate / 2).toLocaleString()}` : `Full day · ₱${baseRate.toLocaleString()}`;
+            : e.is_halfday ? `Half day · ₱${(baseRate / 2).toLocaleString()}` : `Full day · ₱${baseRate.toLocaleString()}`;
 
     // Per-field divide helpers (÷1 – ÷10)
     const divSel = (field, val) => {
@@ -1191,25 +996,7 @@ function renderEntries(pid) {
 
     const offOpacity = isOffsite ? "opacity:.38;pointer-events:none;user-select:none" : "";
 
-    // Banner: Day N | weekday date | status + delete
-    const dayNum = entryIdx + 1;
-    const dateStr = e.date ? new Date(e.date + "T00:00:00").toLocaleDateString("en-PH", { weekday: "long", month: "long", day: "numeric", year: "numeric" }) : "—";
-    const isComplete = c.total > 0;
-    const statusBadge = isComplete
-      ? `<span class="edb-status edb-status-complete"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg> Complete</span>`
-      : `<span class="edb-status edb-status-draft">Draft</span>`;
-
     return `<div class="entry${isOffsite ? ' entry-offsite' : ''}" id="entry-${e.id}">
-      <div class="entry-day-banner">
-        <span class="edb-left">Day ${String(dayNum).padStart(2, '0')}</span>
-        <span class="edb-center">${dateStr}</span>
-        <div class="edb-right">
-          ${statusBadge}
-          <button class="edb-delete-btn" onclick="delEntry('${pid}','${e.id}')" title="Delete this day's entry">
-            <i data-lucide="trash-2"></i>
-          </button>
-        </div>
-      </div>
       <div class="entry-grid">
         <label>Date<input type="date" value="${e.date}" onchange="updateEntry('${pid}','${e.id}','date',this.value)"></label>
         <label>Location<select onchange="updateEntry('${pid}','${e.id}','location',this.value)">${LOCATIONS.map(l => `<option ${l === e.location ? "selected" : ""}>${l}</option>`).join("")}</select></label>
@@ -1222,55 +1009,45 @@ function renderEntries(pid) {
       </div>
       <div class="entry-section">
         <h4>Day Type</h4>
-        <div class="daytype-row1">
+        <div class="entry-grid" style="align-items:start">
           <label class="toggle-check tone-amber ${e.is_halfday && !isOffsite ? 'is-checked' : ''}" style="${isOffsite ? offOpacity : ''}">
             <input type="checkbox" ${e.is_halfday ? "checked" : ""} ${isOffsite ? "disabled" : ""} onchange="updateEntry('${pid}','${e.id}','is_halfday',this.checked);this.closest('.toggle-check').classList.toggle('is-checked',this.checked)">
             <span class="toggle-box"><svg viewBox="0 0 14 12" fill="none"><polyline points="2,6.5 5.5,10 12,2.5" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
-            Half Day
+            Half Day (½ base rate)
+          </label>
+          <label style="flex-direction:column;gap:6px">
+            <span style="font-size:10px;font-weight:700;letter-spacing:.8px;text-transform:uppercase;color:var(--text-dim)">Holiday Pay</span>
+            <select onchange="onHolidayTypeChange('${pid}','${e.id}',this.value)"
+              class="holiday-type-sel htype-${holidayType}"
+              style="${holidayType === 'offsite' ? 'border-color:var(--purple);background:var(--purple-bg);color:var(--purple)' : holidayType === 'onsite' ? 'border-color:var(--green);background:var(--green-bg);color:var(--green)' : holidayType === 'special' ? 'border-color:var(--amber);background:var(--amber-bg);color:var(--amber)' : ''}">
+              <option value="none"    ${holidayType === "none" ? "selected" : ""}>None</option>
+              <option value="onsite"  ${holidayType === "onsite" ? "selected" : ""}>Holiday Onsite (+₱1,000)</option>
+              <option value="offsite" ${holidayType === "offsite" ? "selected" : ""}>Holiday Offsite (+₱1,000, no work)</option>
+              <option value="special" ${holidayType === "special" ? "selected" : ""}>Special Holiday (+30% of daily rate)</option>
+            </select>
+            ${holidayType !== 'none' ? `
+            <div class="holiday-detail-card htype-card-${holidayType}">
+              <div class="holiday-detail-row">
+                <div class="holiday-detail-field">
+                  <span class="holiday-detail-label">Holiday Notes <span style="font-weight:400;font-style:italic">(optional)</span></span>
+                  <input type="text" placeholder="e.g. New Year's Day" value="${(e.holiday_notes || '').replace(/"/g,'&quot;')}"
+                    onchange="updateEntry('${pid}','${e.id}','holiday_notes',this.value)">
+                </div>
+                <div class="holiday-detail-field holiday-pay-chip">
+                  <span class="holiday-detail-label">Holiday Bonus</span>
+                  <span class="holiday-pay-badge hbadge-${holidayType}">
+                    ${holidayType === 'onsite' ? '+₱1,000 (Onsite)' : holidayType === 'offsite' ? '+₱1,000 (Offsite)' : '+' + Math.round((emp ? emp.base_rate : 1000) * 0.3).toLocaleString() + ' (30% rate)'}
+                  </span>
+                </div>
+              </div>
+            </div>` : ''}
+            <div id="holiday-notes-wrap-${e.id}" style="display:none"></div>
           </label>
           <label class="toggle-check tone-blue ${e.is_offset ? "is-checked" : ""}">
             <input type="checkbox" ${e.is_offset ? "checked" : ""} onchange="updateEntry('${pid}','${e.id}','is_offset',this.checked);this.closest('.toggle-check').classList.toggle('is-checked',this.checked)">
             <span class="toggle-box"><svg viewBox="0 0 14 12" fill="none"><polyline points="2,6.5 5.5,10 12,2.5" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
             Offset (₱1,000)
           </label>
-          <label class="daytype-inline-label">Gas
-            <input type="number" min="0" value="${e.gas_allowance || 0}" onchange="updateEntry('${pid}','${e.id}','gas_allowance',this.value)">
-          </label>
-          <label class="daytype-inline-label">Notes
-            <input value="${e.notes || ""}" placeholder="optional…" onchange="updateEntry('${pid}','${e.id}','notes',this.value)">
-          </label>
-        </div>
-        <div class="daytype-row2">
-          <label class="daytype-holiday-label">
-            <span>Holiday Pay</span>
-            <select onchange="onHolidayTypeChange('${pid}','${e.id}',this.value)"
-              class="holiday-type-sel htype-${holidayType}"
-              style="${holidayType === 'offsite' ? 'border-color:var(--purple);background:var(--purple-bg);color:var(--purple)' : holidayType === 'onsite' ? 'border-color:var(--green);background:var(--green-bg);color:var(--green)' : holidayType === 'special' ? 'border-color:var(--amber);background:var(--amber-bg);color:var(--amber)' : holidayType === 'regular' ? 'border-color:#dc2626;background:#fef2f2;color:#dc2626' : ''}">
-              <option value="none"    ${holidayType === "none" ? "selected" : ""}>None</option>
-              <option value="regular" ${holidayType === "regular" ? "selected" : ""}>Regular Holiday (2× daily rate)</option>
-              <option value="onsite"  ${holidayType === "onsite" ? "selected" : ""}>Holiday Onsite (+₱1,000)</option>
-              <option value="offsite" ${holidayType === "offsite" ? "selected" : ""}>Holiday Offsite (+₱1,000, no work)</option>
-              <option value="special" ${holidayType === "special" ? "selected" : ""}>Special Holiday (+30% of daily rate)</option>
-            </select>
-          </label>
-          ${holidayType !== 'none' ? `
-          <div class="holiday-detail-card htype-card-${holidayType}" style="flex:1;margin:0">
-            <div class="holiday-detail-row">
-              <div class="holiday-detail-field">
-                <span class="holiday-detail-label">Holiday Notes <span style="font-weight:400;font-style:italic">(optional)</span></span>
-                <input type="text" placeholder="e.g. New Year's Day" value="${(e.holiday_notes || '').replace(/"/g,'&quot;')}"
-                  onchange="updateEntry('${pid}','${e.id}','holiday_notes',this.value)">
-              </div>
-              <div class="holiday-detail-field holiday-pay-chip">
-                <span class="holiday-detail-label">Holiday Bonus</span>
-                <span class="holiday-pay-badge hbadge-${holidayType}">
-                  ${holidayType === 'regular' ? `+₱${((emp ? emp.base_rate : 1000) * (e.is_halfday ? 0.5 : 1)).toLocaleString()} (100% base)` : holidayType === 'onsite' ? '+₱1,000 (Onsite)' : holidayType === 'offsite' ? '+₱1,000 (Offsite)' : '+' + Math.round((emp ? emp.base_rate : 1000) * 0.3).toLocaleString() + ' (30% rate)'}
-                </span>
-                ${holidayType === 'regular' ? `<span style="font-size:10px;color:#dc2626;font-weight:600;margin-top:2px">= ₱${((emp ? emp.base_rate : 1000) * (e.is_halfday ? 1 : 2)).toLocaleString()} total</span>` : ''}
-              </div>
-            </div>
-          </div>` : ''}
-          <div id="holiday-notes-wrap-${e.id}" style="display:none"></div>
         </div>
       </div>
       <div class="entry-section" style="${isOffsite ? offOpacity : ''}">
@@ -1301,9 +1078,16 @@ function renderEntries(pid) {
           <div class="cf-card" id="units-list-${e.id}"></div>
         </div>
       </div>
+      <div class="entry-section">
+        <h4>Extras</h4>
+        <div class="entry-grid">
+          <label>Gas Allowance<input type="number" min="0" value="${e.gas_allowance || 0}" onchange="updateEntry('${pid}','${e.id}','gas_allowance',this.value)"></label>
+        </div>
+        <label style="margin-top:8px;display:flex;flex-direction:column;gap:6px;font-size:10px;font-weight:700;letter-spacing:.8px;text-transform:uppercase;color:var(--text-dim)">Notes<input value="${e.notes || ""}" onchange="updateEntry('${pid}','${e.id}','notes',this.value)"></label>
+      </div>
       <div class="entry-foot">
         <div class="entry-totals"><span>Base: <strong>${peso(c.base)}</strong></span><span>Com: <strong>${peso(c.commission)}</strong></span><span>OT: <strong>${peso(c.otPay)}</strong></span><span>Holiday: <strong>${peso(c.holiday)}</strong></span></div>
-        <span class="entry-total">Total: ${peso(c.total)}</span>
+        <div style="display:flex;align-items:center;gap:10px"><span class="entry-total">Total: ${peso(c.total)}</span><button class="btn danger" onclick="delEntry('${pid}','${e.id}')"><i data-lucide="trash-2"></i></button></div>
       </div>
     </div>`;
   }).join("");
@@ -2076,7 +1860,7 @@ function exportPDF(pid) {
     body: p.entries.map(e => {
       const c = calcEntry(e, emp.base_rate);
       const holidayType = e.holiday_type || (e.is_holiday ? "onsite" : "none");
-      const type = e.is_offset ? "OFFSET" : holidayType === "offsite" ? "HOL OFF" : holidayType === "onsite" ? "HOL ON" : holidayType === "special" ? "HOL SP" : holidayType === "regular" ? "HOL REG" : e.is_halfday ? "HALF" : "FULL";
+      const type = e.is_offset ? "OFFSET" : holidayType === "offsite" ? "HOL OFF" : holidayType === "onsite" ? "HOL ON" : holidayType === "special" ? "HOL SP" : e.is_halfday ? "HALF" : "FULL";
       const otH = +e.ot_hours || 0;
       const otM = +e.ot_minutes || 0;
       // Show vehicle list summary: total qty across rows, with div notation if any row divides
