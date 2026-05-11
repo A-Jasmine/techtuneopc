@@ -135,12 +135,15 @@ function parseVehicleLists(e) {
 }
 
 // Sum all rows for a vehicle type given its rate.
-// Per-row `div` takes priority; fall back to `globalDiv` only when the row
-// has no explicit divisor (i.e. div is 0 / undefined / null).
+// Per-row `div` takes priority only when it is explicitly set to > 1
+// (meaning the user chose to split that row among multiple workers).
+// A row.div of 1 (the UI default / "unset") falls back to the entry-level
+// globalDiv (divide_by field), so the entry-level divisor is always honoured
+// unless a row has its own explicit split.
 function sumVehicleRows(rows, rate, globalDiv) {
   return (rows || []).reduce((s, row) => {
     const rowDiv = +row.div;
-    const divisor = safeDiv(rowDiv > 0 ? rowDiv : globalDiv);
+    const divisor = safeDiv(rowDiv > 1 ? rowDiv : globalDiv);
     return s + round2((+row.qty || 0) * rate / divisor);
   }, 0);
 }
