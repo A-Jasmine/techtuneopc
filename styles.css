@@ -2721,3 +2721,321 @@ textarea:focus {
   border-color: var(--accent);
   font-weight: 600;
 }
+
+/* ══════════════════════════════════════════════════════════════
+   UI IMPROVEMENTS v3 — Day Banner, Step Indicator, Refined Form
+   ══════════════════════════════════════════════════════════════ */
+
+/* ── Day Step Indicator (horizontal progress strip) ── */
+.day-step-indicator {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  margin-bottom: 24px;
+  overflow-x: auto;
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+  padding: 4px 2px;
+}
+.day-step-indicator::-webkit-scrollbar { display: none; }
+
+.dsi-item {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+.dsi-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 8px 14px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-family: var(--font);
+  position: relative;
+}
+
+.dsi-circle {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: var(--surface-3);
+  border: 2px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  font-weight: 800;
+  color: var(--text-dim);
+  font-family: var(--mono);
+  transition: all .2s ease;
+  position: relative;
+  z-index: 1;
+}
+
+.dsi-btn:hover .dsi-circle {
+  border-color: var(--blue);
+  color: var(--blue);
+  background: var(--blue-bg);
+}
+
+.dsi-btn.dsi-active .dsi-circle {
+  background: var(--black);
+  border-color: var(--black);
+  color: #fff;
+  box-shadow: 0 2px 8px rgba(0,0,0,.22);
+}
+
+[data-theme="dark"] .dsi-btn.dsi-active .dsi-circle {
+  background: #e0e0e0;
+  border-color: #e0e0e0;
+  color: #111;
+}
+
+.dsi-btn.dsi-complete .dsi-circle {
+  background: var(--green-bg);
+  border-color: var(--green);
+  color: var(--green);
+}
+
+/* Status dot on circle (draft vs complete) */
+.dsi-dot {
+  position: absolute;
+  top: -2px;
+  right: -2px;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--amber);
+  border: 2px solid var(--surface);
+  display: none;
+}
+
+.dsi-btn.dsi-active .dsi-dot,
+.dsi-btn.dsi-complete .dsi-dot { display: block; }
+.dsi-btn.dsi-complete .dsi-dot { background: var(--green); }
+
+.dsi-label {
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: .6px;
+  text-transform: uppercase;
+  color: var(--text-dim);
+  white-space: nowrap;
+}
+
+.dsi-btn.dsi-active .dsi-label { color: var(--black); }
+[data-theme="dark"] .dsi-btn.dsi-active .dsi-label { color: var(--text); }
+.dsi-btn.dsi-complete .dsi-label { color: var(--green); }
+
+.dsi-connector {
+  flex: 0 0 20px;
+  height: 2px;
+  background: var(--border);
+  border-radius: 2px;
+}
+
+/* ── Sticky Day Banner (full-width header per entry) ── */
+.entry-day-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 20px 10px 18px;
+  margin: -24px -24px 20px;      /* bleed to entry edges */
+  background: var(--surface-2);
+  border-bottom: 1px solid var(--border);
+  border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.edb-left {
+  font-size: 15px;
+  font-weight: 800;
+  color: var(--blue);
+  font-family: var(--mono);
+  letter-spacing: -.3px;
+  line-height: 1;
+}
+
+.edb-center {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-soft);
+  letter-spacing: .2px;
+}
+
+.edb-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* Delete button repositioned to banner top-right */
+.edb-delete-btn {
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--text-dim);
+  cursor: pointer;
+  display: grid;
+  place-items: center;
+  transition: all .15s ease;
+  flex-shrink: 0;
+}
+.edb-delete-btn i { width: 13px; height: 13px; }
+.edb-delete-btn:hover {
+  background: #fef2f2;
+  border-color: #fecaca;
+  color: var(--danger);
+}
+
+/* Status badge in banner */
+.edb-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 10px;
+  border-radius: 20px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: .5px;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+.edb-status-draft {
+  background: var(--amber-bg);
+  color: var(--amber);
+  border: 1px solid var(--amber-border);
+}
+.edb-status-complete {
+  background: var(--green-bg);
+  color: var(--green);
+  border: 1px solid var(--green-border);
+}
+
+/* ── Section header improvement — subtle background fill ── */
+.entry-section h4 {
+  background: var(--surface-2);
+  border-radius: 8px;
+  padding: 7px 12px !important;
+  margin-left: -4px;
+  margin-right: -4px;
+  font-size: 9.5px !important;
+  font-weight: 800 !important;
+  letter-spacing: 1.6px !important;
+  color: var(--text-soft) !important;
+  border: none;
+}
+/* Remove the h4::after line since we now have pill bg */
+.entry-section h4::after {
+  display: none !important;
+}
+
+/* ── Bolder entry footer total — make it the "hero" ── */
+.entry-foot {
+  background: var(--surface-2);
+  border-radius: 0 0 var(--radius-lg) var(--radius-lg);
+  margin: 20px -24px -20px;
+  padding: 14px 20px !important;
+  border-top: 1px solid var(--border) !important;
+}
+
+.entry-total {
+  font-size: 22px !important;
+  font-weight: 800 !important;
+  color: var(--black) !important;
+  font-family: var(--mono) !important;
+  letter-spacing: -1px !important;
+}
+
+/* Softer breakdown labels */
+.entry-totals {
+  display: flex;
+  gap: 12px !important;
+  flex-wrap: wrap;
+  font-size: 11px !important;
+  font-family: var(--mono);
+  color: var(--text-dim);
+  align-items: center;
+}
+
+.entry-totals strong {
+  color: var(--text-soft) !important;
+  font-size: 12px;
+}
+
+/* ── Refined section header spacing ── */
+.entry-section {
+  margin-top: 18px !important;
+  padding-top: 16px !important;
+}
+
+/* ── Base info row — more breathing room ── */
+.base-info-row {
+  margin-top: 18px !important;
+  padding: 13px 16px !important;
+  border-radius: var(--radius-sm);
+}
+
+/* ── OT Section — ensure aligns with top grid ── */
+.entry-section .entry-grid {
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+}
+
+/* Dark mode banner */
+[data-theme="dark"] .entry-day-banner {
+  background: var(--surface-2);
+  border-color: var(--border);
+}
+[data-theme="dark"] .edb-delete-btn:hover {
+  background: #2a1010;
+  border-color: #5a1a1a;
+}
+
+/* ── Entry hover gets a subtle left border color based on status ── */
+.entry {
+  border-left: 3px solid transparent !important;
+  transition: border-color .2s, box-shadow .2s, transform .1s;
+}
+.entry:hover {
+  border-left-color: var(--blue) !important;
+}
+.entry::before { display: none !important; }  /* Remove old pseudo-element bar */
+
+/* ── Scroll target animation when new entry added ── */
+@keyframes entryPop {
+  0% { transform: scale(.995); opacity: .7; box-shadow: 0 0 0 3px rgba(37,99,235,.2); }
+  60% { box-shadow: 0 0 0 6px rgba(37,99,235,.08); }
+  100% { transform: scale(1); opacity: 1; box-shadow: none; }
+}
+.entry-new {
+  animation: entryPop .5s cubic-bezier(.34,1.56,.64,1);
+}
+
+/* ── "Add Day" button — more prominent ── */
+button[onclick^="addEntry"] {
+  margin-top: 10px;
+  width: 100%;
+  justify-content: center;
+  padding: 12px !important;
+  font-size: 14px !important;
+  font-weight: 600 !important;
+  border-radius: var(--radius) !important;
+  border: 1.5px dashed var(--border) !important;
+  background: var(--surface-2) !important;
+  color: var(--text-soft) !important;
+  transition: all .18s ease;
+}
+button[onclick^="addEntry"]:hover {
+  background: var(--blue-bg) !important;
+  border-color: var(--blue) !important;
+  color: var(--blue) !important;
+  border-style: solid !important;
+}
+

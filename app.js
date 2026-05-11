@@ -1075,7 +1075,37 @@ function renderEntries(pid) {
   const emp = state.employees.find(x => x.id === p.employee_id);
   const baseRate = emp.base_rate || 1000;
   const wrap = document.getElementById("entries-" + pid);
-  wrap.innerHTML = p.entries.map(e => {
+
+  // ── Day Step Indicator ──────────────────────────────────────
+  // Build step bubbles — one per entry, showing Day N, date short, active/complete
+  const buildStepIndicator = () => {
+    if (p.entries.length === 0) return "";
+    const items = p.entries.map((e, idx) => {
+      const dayNum = idx + 1;
+      const dateShort = e.date ? new Date(e.date + "T00:00:00").toLocaleDateString("en-PH", { month: "short", day: "numeric" }) : `Day ${dayNum}`;
+      // "Complete" = has a non-zero total
+      const c2 = calcEntry(e, baseRate);
+      const isComplete = c2.total > 0;
+      const stateClass = isComplete ? "dsi-complete" : "";
+      const connector = idx < p.entries.length - 1 ? `<div class="dsi-connector"></div>` : "";
+      return `
+        <div class="dsi-item">
+          <button class="dsi-btn ${stateClass}" onclick="document.getElementById('entry-${e.id}').scrollIntoView({behavior:'smooth',block:'center'})" title="Go to Day ${dayNum}">
+            <div class="dsi-circle">
+              ${isComplete
+                ? `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg>`
+                : dayNum}
+              <div class="dsi-dot"></div>
+            </div>
+            <span class="dsi-label">${dateShort}</span>
+          </button>
+          ${connector}
+        </div>`;
+    }).join("");
+    return `<div class="day-step-indicator">${items}</div>`;
+  };
+
+  wrap.innerHTML = buildStepIndicator() + p.entries.map((e, entryIdx) => {
     const c = calcEntry(e, baseRate);
     const holidayType = e.holiday_type || (e.is_holiday ? "onsite" : "none");
     const isOffsite = holidayType === "offsite";
@@ -1106,7 +1136,25 @@ function renderEntries(pid) {
 
     const offOpacity = isOffsite ? "opacity:.38;pointer-events:none;user-select:none" : "";
 
+    // Banner: Day N | weekday date | status + delete
+    const dayNum = entryIdx + 1;
+    const dateStr = e.date ? new Date(e.date + "T00:00:00").toLocaleDateString("en-PH", { weekday: "long", month: "long", day: "numeric", year: "numeric" }) : "—";
+    const isComplete = c.total > 0;
+    const statusBadge = isComplete
+      ? `<span class="edb-status edb-status-complete"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg> Complete</span>`
+      : `<span class="edb-status edb-status-draft">Draft</span>`;
+
     return `<div class="entry${isOffsite ? ' entry-offsite' : ''}" id="entry-${e.id}">
+      <div class="entry-day-banner">
+        <span class="edb-left">Day ${String(dayNum).padStart(2, '0')}</span>
+        <span class="edb-center">${dateStr}</span>
+        <div class="edb-right">
+          ${statusBadge}
+          <button class="edb-delete-btn" onclick="delEntry('${pid}','${e.id}')" title="Delete this day's entry">
+            <i data-lucide="trash-2"></i>
+          </button>
+        </div>
+      </div>
       <div class="entry-grid">
         <label>Date<input type="date" value="${e.date}" onchange="updateEntry('${pid}','${e.id}','date',this.value)"></label>
         <label>Location<select onchange="updateEntry('${pid}','${e.id}','location',this.value)">${LOCATIONS.map(l => `<option ${l === e.location ? "selected" : ""}>${l}</option>`).join("")}</select></label>
@@ -1200,7 +1248,7 @@ function renderEntries(pid) {
       </div>
       <div class="entry-foot">
         <div class="entry-totals"><span>Base: <strong>${peso(c.base)}</strong></span><span>Com: <strong>${peso(c.commission)}</strong></span><span>OT: <strong>${peso(c.otPay)}</strong></span><span>Holiday: <strong>${peso(c.holiday)}</strong></span></div>
-        <div style="display:flex;align-items:center;gap:10px"><span class="entry-total">Total: ${peso(c.total)}</span><button class="btn danger" onclick="delEntry('${pid}','${e.id}')"><i data-lucide="trash-2"></i></button></div>
+        <span class="entry-total">Total: ${peso(c.total)}</span>
       </div>
     </div>`;
   }).join("");
