@@ -925,9 +925,10 @@ textarea:focus {
   background: var(--amber-bg);
   border: 1px solid var(--amber-border);
   border-radius: var(--radius-sm);
-  padding: 9px 13px;
-  margin-top: 10px;
+  padding: 10px 14px;
+  margin-top: 14px;
   font-size: 12px;
+  gap: 10px;
 }
 
 .base-info-label {
@@ -955,29 +956,30 @@ textarea:focus {
 
 /* ── ENTRY ── */
 .entry {
-  background: var(--surface-2);
+  background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
-  padding: 18px;
-  margin-bottom: 12px;
+  padding: 24px 24px 20px;
+  margin-bottom: 16px;
   transition: .18s ease;
+  box-shadow: var(--shadow-sm);
 }
 
 .entry:hover {
   border-color: var(--border-hi);
-  box-shadow: var(--shadow-sm);
+  box-shadow: var(--shadow);
 }
 
 .entry-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
-  gap: 10px;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 14px;
 }
 
 .entry-grid label {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 7px;
   font-size: 10px;
   font-weight: 700;
   letter-spacing: .8px;
@@ -986,23 +988,33 @@ textarea:focus {
 }
 
 .entry-section {
-  margin-top: 16px;
-  padding-top: 16px;
-  border-top: 1px dashed var(--border);
+  margin-top: 20px;
+  padding-top: 20px;
+  border-top: 1px solid var(--border);
 }
 
 .entry-section h4 {
-  margin-bottom: 10px;
+  margin-bottom: 14px;
   font-size: 9px;
-  font-weight: 700;
-  letter-spacing: 1.5px;
+  font-weight: 800;
+  letter-spacing: 1.8px;
   text-transform: uppercase;
-  color: var(--muted);
+  color: var(--text-dim);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.entry-section h4::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: var(--border);
+  border-radius: 1px;
 }
 
 .entry-foot {
-  margin-top: 16px;
-  padding-top: 14px;
+  margin-top: 20px;
+  padding-top: 16px;
   border-top: 1px solid var(--border);
   display: flex;
   align-items: center;
@@ -1578,12 +1590,12 @@ textarea:focus {
   content: "";
   position: absolute;
   left: 0;
-  top: 14px;
-  bottom: 14px;
+  top: 16px;
+  bottom: 16px;
   width: 3px;
   border-radius: 3px;
   background: linear-gradient(180deg, #2563eb, #7c3aed);
-  opacity: .35;
+  opacity: .28;
 }
 
 /* Net bar — flat light */
@@ -2055,94 +2067,384 @@ textarea:focus {
 .history-table tr:last-child td { border-bottom: none; }
 .history-table tr:hover td { background: var(--surface-2); }
 
-/* ── Commission per-field divide grid ── */
+/* ══════════════════════════════════════════
+   COMMISSION FIELD CARDS — clean redesign
+   ══════════════════════════════════════════ */
+
+/* Outer grid — 6 equal columns that wrap on small screens */
+/* ═══════════════════════════════════════════════════════
+   COMMISSION GRID — Redesigned Card System
+   ═══════════════════════════════════════════════════════ */
+
 .commission-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
-  gap: 10px;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 12px;
+  margin-top: 8px;
 }
-/* Units container — normal grid cell, sits beside Tubes Qty */
-.comm-field-wrap--units {
-  display: contents; /* let each unit row be a direct grid item */
+
+/* ── Base card shell ── */
+.cf-card {
+  background: var(--surface);
+  border: 1.5px solid var(--border);
+  border-radius: 16px;
   padding: 0;
-  background: none;
-  border: none;
-}
-/* Each individual unit row — normal grid cell matching other comm-field-wraps */
-.comm-field-wrap--unit-row {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  overflow: hidden;
+  transition: border-color .2s, box-shadow .2s, background .2s;
+  position: relative;
 }
-.comm-field-wrap--unit-row label {
-  margin: 0;
+.cf-card:hover {
+  border-color: var(--border-hi);
+  box-shadow: 0 4px 16px rgba(0,0,0,.07);
 }
-/* Add-unit button — normal grid cell, button aligns with input row */
-.comm-field-wrap--add-unit {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
+
+/* ── Active state: card has qty > 0 ── */
+.cf-card[data-active="1"] {
+  border-color: var(--blue);
+  background: var(--blue-bg);
+  box-shadow: 0 0 0 3px rgba(37,99,235,.08), 0 4px 16px rgba(37,99,235,.06);
 }
-.comm-field-wrap--add-unit .btn {
-  width: 100%;
-  font-size: 11px;
-  padding: 6px 8px;
-  justify-content: center;
+[data-theme="dark"] .cf-card[data-active="1"] {
+  background: rgba(37,99,235,.08);
+  border-color: var(--blue);
+  box-shadow: 0 0 0 3px rgba(37,99,235,.12);
 }
-.comm-field-wrap {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-/* Label: title on top, full-width input below */
-.comm-field-wrap > label {
-  margin: 0;
-  display: flex !important;
-  flex-direction: column !important;
-  align-items: stretch !important;
-  gap: 4px;
-  font-size: 10px;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: .6px;
-  color: var(--text-dim);
-  white-space: nowrap;
-}
-.comm-field-wrap > label input[type="number"] {
-  width: 100% !important;
-  text-align: center;
-  padding: 6px 8px;
-  font-size: 13px;
-}
-/* Unit rows already column — no extra override needed */
-.comm-field-wrap--unit-row > label {
-  white-space: normal;
-}
-.div-row {
+
+/* ── Card header: icon + title + rate + add button ── */
+.cf-card-header {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 10px;
+  padding: 12px 14px 10px;
 }
-.div-label {
-  font-size: 10px;
+.cf-card-icon {
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  background: var(--surface-2);
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  color: var(--text-soft);
+  transition: background .2s, color .2s;
+}
+.cf-card[data-active="1"] .cf-card-icon {
+  background: var(--blue);
+  color: #fff;
+}
+.cf-card-icon--custom { background: var(--amber-bg); color: var(--amber); }
+.cf-card[data-active="1"] .cf-card-icon--custom { background: var(--blue); color: #fff; }
+.cf-card-icon--units { background: var(--green-bg); color: var(--green); }
+.cf-card[data-active="1"] .cf-card-icon--units { background: var(--blue); color: #fff; }
+
+.cf-card-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1;
+  min-width: 0;
+}
+.cf-label {
+  font-size: 12px;
   font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: .6px;
+  letter-spacing: .2px;
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.cf-rate {
+  font-size: 11px;
+  font-weight: 500;
   color: var(--text-dim);
   white-space: nowrap;
 }
-.div-row select {
+.cf-card[data-active="1"] .cf-rate {
+  color: var(--blue);
+  font-weight: 600;
+}
+
+/* ── "Split" (add row) button — solid blue ── */
+.cf-add-btn {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 4px 10px;
+  border-radius: 20px;
+  border: none;
+  background: var(--blue);
+  color: #fff;
+  font-size: 10px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: opacity .15s, transform .1s;
+  white-space: nowrap;
+  letter-spacing: .3px;
+  flex-shrink: 0;
+}
+.cf-add-btn:hover { opacity: .85; transform: scale(1.04); }
+.cf-add-btn:active { transform: scale(.97); }
+.cf-add-btn:disabled { opacity: .35; cursor: not-allowed; transform: none; }
+
+/* ── Thin divider between header and rows ── */
+.cf-divider-line {
+  height: 1px;
+  background: var(--border);
+  margin: 0 14px;
+  opacity: .7;
+}
+.cf-card[data-active="1"] .cf-divider-line {
+  background: var(--blue);
+  opacity: .18;
+}
+
+/* ── Rows container ── */
+.cf-rows-wrap {
+  padding: 10px 14px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+/* ── Individual qty + workers row ── */
+.cf-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.cf-row-extra {
+  padding-top: 8px;
+  border-top: 1px dashed var(--border);
+}
+
+/* ── Stepper control: [−] qty [+] ── */
+.cf-stepper {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  background: var(--surface-2);
+  border: 1.5px solid var(--border);
+  border-radius: 10px;
+  overflow: hidden;
+  flex-shrink: 0;
+  transition: border-color .15s;
+}
+.cf-card[data-active="1"] .cf-stepper {
+  border-color: var(--blue);
+  background: var(--blue-bg);
+}
+.cf-step-btn {
+  width: 30px;
+  height: 32px;
+  border: none;
+  background: none;
+  color: var(--text-soft);
+  cursor: pointer;
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  transition: background .13s, color .13s;
+}
+.cf-step-btn:hover:not(:disabled) {
+  background: var(--blue);
+  color: #fff;
+}
+.cf-step-btn:active:not(:disabled) { background: var(--blue); opacity: .8; }
+.cf-step-btn:disabled { opacity: .3; cursor: not-allowed; }
+.cf-step-minus { border-right: 1px solid var(--border); }
+.cf-step-plus  { border-left:  1px solid var(--border); }
+.cf-card[data-active="1"] .cf-step-minus,
+.cf-card[data-active="1"] .cf-step-plus {
+  border-color: rgba(37,99,235,.2);
+}
+
+/* Quantity number input — clean, center, no spinners */
+.cf-qty-input {
+  width: 38px !important;
+  text-align: center !important;
+  font-size: 16px !important;
+  font-weight: 800 !important;
+  font-family: var(--mono) !important;
+  padding: 0 2px !important;
+  border: none !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  color: var(--text) !important;
+  -moz-appearance: textfield !important;
+  height: 32px !important;
+  line-height: 32px !important;
+}
+.cf-qty-input::-webkit-outer-spin-button,
+.cf-qty-input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+.cf-qty-input:focus { outline: none !important; }
+.cf-card[data-active="1"] .cf-qty-input { color: var(--blue) !important; }
+.cf-qty-input::placeholder { color: var(--muted) !important; }
+
+/* ── Workers divider (÷ N) ── */
+.cf-workers-col {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
   flex: 1;
-  font-size: 12px;
-  padding: 4px 6px;
   min-width: 0;
 }
+.cf-divider-label {
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: .6px;
+  text-transform: uppercase;
+  color: var(--text-dim);
+  white-space: nowrap;
+}
+.cf-divider-select {
+  font-size: 11px !important;
+  padding: 3px 6px !important;
+  border-radius: 7px !important;
+  width: 100% !important;
+  border-color: var(--border) !important;
+  background: var(--surface) !important;
+}
+.cf-card[data-active="1"] .cf-divider-select {
+  border-color: rgba(37,99,235,.25) !important;
+  background: var(--surface) !important;
+}
+
+/* ── Remove row button ── */
+.cf-remove-btn {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  border: 1px solid var(--border);
+  background: none;
+  color: var(--text-dim);
+  cursor: pointer;
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  transition: all .15s ease;
+}
+.cf-remove-btn:hover {
+  border-color: var(--danger);
+  color: var(--danger);
+  background: #fef2f2;
+}
+.cf-remove-placeholder {
+  width: 22px;
+  flex-shrink: 0;
+}
+
+/* Legacy aliases — keep old class names harmless */
+.cf-header { display: none; }
+.cf-divider-wrap { display: none; }
+
+/* ── Day Type compact layout ── */
+.daytype-row1 {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.daytype-row1 .toggle-check {
+  margin-top: 0;
+  flex-shrink: 0;
+  padding: 8px 12px;
+  font-size: 12px;
+}
+.daytype-inline-label {
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 4px !important;
+  font-size: 10px !important;
+  font-weight: 700 !important;
+  letter-spacing: .7px !important;
+  text-transform: uppercase !important;
+  color: var(--text-dim) !important;
+  min-width: 80px;
+  flex: 1;
+}
+.daytype-inline-label input {
+  font-size: 13px;
+  padding: 7px 10px;
+}
+.daytype-row2 {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  margin-top: 10px;
+  flex-wrap: wrap;
+}
+.daytype-holiday-label {
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 5px !important;
+  font-size: 10px !important;
+  font-weight: 700 !important;
+  letter-spacing: .7px !important;
+  text-transform: uppercase !important;
+  color: var(--text-dim) !important;
+  min-width: 200px;
+  flex-shrink: 0;
+}
+
+/* Brand bar above the grid */
+.cf-brand-bar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+}
+.cf-brand-label {
+  display: flex !important;
+  flex-direction: row !important;
+  align-items: center !important;
+  gap: 8px !important;
+  margin: 0 !important;
+  font-size: 10px !important;
+  font-weight: 700 !important;
+  letter-spacing: .8px !important;
+  text-transform: uppercase !important;
+  color: var(--text-dim) !important;
+  white-space: nowrap;
+}
+.cf-brand-label select {
+  font-size: 13px !important;
+  font-weight: 600 !important;
+  padding: 6px 12px !important;
+  width: auto !important;
+  min-width: 120px;
+}
+
+/* Legacy compat — keep .brand-rate-hint working */
 .brand-rate-hint {
   background: var(--surface-2);
   border: 1px solid var(--border);
   border-radius: 8px;
   padding: 4px 10px;
 }
+
+/* Dark mode overrides for cf cards */
+[data-theme="dark"] .cf-card {
+  background: var(--surface);
+}
+[data-theme="dark"] .cf-card-icon {
+  background: var(--surface-2);
+}
+[data-theme="dark"] .cf-stepper {
+  background: var(--surface-2);
+}
+[data-theme="dark"] .cf-remove-btn:hover {
+  background: #2a1010;
+}
+
+
 
 /* ── Offsite holiday entry greyed overlay ── */
 .entry-offsite {
@@ -2305,4 +2607,435 @@ textarea:focus {
 [data-theme="dark"] .fnp-top-btn:hover { background: rgba(0,0,0,.2); }
 .fnp-top-btn:hover { background: rgba(255,255,255,.22); }
 .fnp-top-btn i { width: 14px; height: 14px; }
+
+
+/* ── Holiday Detail Card (improved layout) ── */
+.holiday-detail-card {
+  border-radius: 8px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  background: var(--bg-alt, var(--surface));
+  margin-top: 2px;
+}
+.holiday-detail-card.htype-card-onsite { border-color: var(--green); background: var(--green-bg); }
+.holiday-detail-card.htype-card-offsite { border-color: var(--purple); background: var(--purple-bg); }
+.holiday-detail-card.htype-card-special { border-color: var(--amber); background: var(--amber-bg); }
+.holiday-detail-card.htype-card-regular { border-color: #dc2626; background: #fef2f2; }
+.holiday-detail-row {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 10px;
+  align-items: end;
+}
+.holiday-detail-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.holiday-detail-label {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: .7px;
+  text-transform: uppercase;
+  color: var(--text-dim);
+}
+.holiday-pay-chip {
+  flex-shrink: 0;
+  align-items: flex-end;
+}
+.holiday-pay-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 10px;
+  border-radius: 20px;
+  font-size: 11px;
+  font-weight: 700;
+  white-space: nowrap;
+  letter-spacing: .3px;
+}
+.hbadge-onsite  { background: var(--green-bg); color: var(--green); border: 1px solid var(--green); }
+.hbadge-offsite { background: var(--purple-bg); color: var(--purple); border: 1px solid var(--purple); }
+.hbadge-special { background: var(--amber-bg); color: var(--amber); border: 1px solid var(--amber); }
+.hbadge-regular { background: #fef2f2; color: #dc2626; border: 1px solid #dc2626; }
+
+/* Regular Holiday breakdown card */
+.regular-holiday-breakdown {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 8px;
+  padding: 12px 14px;
+  background: rgba(220,38,38,.05);
+  border: 1px dashed rgba(220,38,38,.25);
+  border-radius: 8px;
+}
+.rhb-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 12px;
+}
+.rhb-label {
+  color: var(--text-soft);
+  font-weight: 500;
+}
+.rhb-value {
+  font-family: var(--mono);
+  font-weight: 600;
+  color: var(--text);
+  font-size: 13px;
+}
+.rhb-green { color: #16a34a; }
+.rhb-divider {
+  height: 1px;
+  background: rgba(220,38,38,.2);
+  margin: 2px 0;
+}
+.rhb-total .rhb-label {
+  font-weight: 700;
+  color: var(--text);
+}
+.rhb-total .rhb-value {
+  font-size: 15px;
+  color: #dc2626;
+  font-weight: 800;
+}
+[data-theme="dark"] .regular-holiday-breakdown {
+  background: rgba(220,38,38,.08);
+  border-color: rgba(220,38,38,.2);
+}
+[data-theme="dark"] .hbadge-regular {
+  background: #2a1010;
+  color: #f87171;
+  border-color: #f87171;
+}
+
+@media (max-width: 520px) {
+  .holiday-detail-row { grid-template-columns: 1fr; }
+  .holiday-pay-chip { align-items: flex-start; }
+}
+
+/* ── Custom field accent in Settings ── */
+#brand-mgmt-body input[id^="scf-name-"] {
+  color: var(--accent);
+  border-color: var(--accent);
+  font-weight: 600;
+}
+
+/* ══════════════════════════════════════════════════════════════
+   UI IMPROVEMENTS v3 — Day Banner, Step Indicator, Refined Form
+   ══════════════════════════════════════════════════════════════ */
+
+/* ── Day Step Indicator (horizontal progress strip) ── */
+.day-step-indicator {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  margin-bottom: 24px;
+  overflow-x: auto;
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+  padding: 4px 2px;
+}
+.day-step-indicator::-webkit-scrollbar { display: none; }
+
+.dsi-item {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+.dsi-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 8px 14px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-family: var(--font);
+  position: relative;
+}
+
+.dsi-circle {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: var(--surface-3);
+  border: 2px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  font-weight: 800;
+  color: var(--text-dim);
+  font-family: var(--mono);
+  transition: all .2s ease;
+  position: relative;
+  z-index: 1;
+}
+
+.dsi-btn:hover .dsi-circle {
+  border-color: var(--blue);
+  color: var(--blue);
+  background: var(--blue-bg);
+}
+
+.dsi-btn.dsi-active .dsi-circle {
+  background: var(--black);
+  border-color: var(--black);
+  color: #fff;
+  box-shadow: 0 2px 8px rgba(0,0,0,.22);
+}
+
+[data-theme="dark"] .dsi-btn.dsi-active .dsi-circle {
+  background: #e0e0e0;
+  border-color: #e0e0e0;
+  color: #111;
+}
+
+.dsi-btn.dsi-complete .dsi-circle {
+  background: var(--green-bg);
+  border-color: var(--green);
+  color: var(--green);
+}
+
+/* Status dot on circle (draft vs complete) */
+.dsi-dot {
+  position: absolute;
+  top: -2px;
+  right: -2px;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--amber);
+  border: 2px solid var(--surface);
+  display: none;
+}
+
+.dsi-btn.dsi-active .dsi-dot,
+.dsi-btn.dsi-complete .dsi-dot { display: block; }
+.dsi-btn.dsi-complete .dsi-dot { background: var(--green); }
+
+.dsi-label {
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: .6px;
+  text-transform: uppercase;
+  color: var(--text-dim);
+  white-space: nowrap;
+}
+
+.dsi-btn.dsi-active .dsi-label { color: var(--black); }
+[data-theme="dark"] .dsi-btn.dsi-active .dsi-label { color: var(--text); }
+.dsi-btn.dsi-complete .dsi-label { color: var(--green); }
+
+.dsi-connector {
+  flex: 0 0 20px;
+  height: 2px;
+  background: var(--border);
+  border-radius: 2px;
+}
+
+/* ── Sticky Day Banner (full-width header per entry) ── */
+.entry-day-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 20px 10px 18px;
+  margin: -24px -24px 20px;      /* bleed to entry edges */
+  background: var(--surface-2);
+  border-bottom: 1px solid var(--border);
+  border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.edb-left {
+  font-size: 15px;
+  font-weight: 800;
+  color: var(--blue);
+  font-family: var(--mono);
+  letter-spacing: -.3px;
+  line-height: 1;
+}
+
+.edb-center {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-soft);
+  letter-spacing: .2px;
+}
+
+.edb-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* Delete button repositioned to banner top-right */
+.edb-delete-btn {
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--text-dim);
+  cursor: pointer;
+  display: grid;
+  place-items: center;
+  transition: all .15s ease;
+  flex-shrink: 0;
+}
+.edb-delete-btn i { width: 13px; height: 13px; }
+.edb-delete-btn:hover {
+  background: #fef2f2;
+  border-color: #fecaca;
+  color: var(--danger);
+}
+
+/* Status badge in banner */
+.edb-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 10px;
+  border-radius: 20px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: .5px;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+.edb-status-draft {
+  background: var(--amber-bg);
+  color: var(--amber);
+  border: 1px solid var(--amber-border);
+}
+.edb-status-complete {
+  background: var(--green-bg);
+  color: var(--green);
+  border: 1px solid var(--green-border);
+}
+
+/* ── Section header improvement — subtle background fill ── */
+.entry-section h4 {
+  background: var(--surface-2);
+  border-radius: 8px;
+  padding: 7px 12px !important;
+  margin-left: -4px;
+  margin-right: -4px;
+  font-size: 9.5px !important;
+  font-weight: 800 !important;
+  letter-spacing: 1.6px !important;
+  color: var(--text-soft) !important;
+  border: none;
+}
+/* Remove the h4::after line since we now have pill bg */
+.entry-section h4::after {
+  display: none !important;
+}
+
+/* ── Bolder entry footer total — make it the "hero" ── */
+.entry-foot {
+  background: var(--surface-2);
+  border-radius: 0 0 var(--radius-lg) var(--radius-lg);
+  margin: 20px -24px -20px;
+  padding: 14px 20px !important;
+  border-top: 1px solid var(--border) !important;
+}
+
+.entry-total {
+  font-size: 22px !important;
+  font-weight: 800 !important;
+  color: var(--black) !important;
+  font-family: var(--mono) !important;
+  letter-spacing: -1px !important;
+}
+
+/* Softer breakdown labels */
+.entry-totals {
+  display: flex;
+  gap: 12px !important;
+  flex-wrap: wrap;
+  font-size: 11px !important;
+  font-family: var(--mono);
+  color: var(--text-dim);
+  align-items: center;
+}
+
+.entry-totals strong {
+  color: var(--text-soft) !important;
+  font-size: 12px;
+}
+
+/* ── Refined section header spacing ── */
+.entry-section {
+  margin-top: 18px !important;
+  padding-top: 16px !important;
+}
+
+/* ── Base info row — more breathing room ── */
+.base-info-row {
+  margin-top: 18px !important;
+  padding: 13px 16px !important;
+  border-radius: var(--radius-sm);
+}
+
+/* ── OT Section — ensure aligns with top grid ── */
+.entry-section .entry-grid {
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+}
+
+/* Dark mode banner */
+[data-theme="dark"] .entry-day-banner {
+  background: var(--surface-2);
+  border-color: var(--border);
+}
+[data-theme="dark"] .edb-delete-btn:hover {
+  background: #2a1010;
+  border-color: #5a1a1a;
+}
+
+/* ── Entry hover gets a subtle left border color based on status ── */
+.entry {
+  border-left: 3px solid transparent !important;
+  transition: border-color .2s, box-shadow .2s, transform .1s;
+}
+.entry:hover {
+  border-left-color: var(--blue) !important;
+}
+.entry::before { display: none !important; }  /* Remove old pseudo-element bar */
+
+/* ── Scroll target animation when new entry added ── */
+@keyframes entryPop {
+  0% { transform: scale(.995); opacity: .7; box-shadow: 0 0 0 3px rgba(37,99,235,.2); }
+  60% { box-shadow: 0 0 0 6px rgba(37,99,235,.08); }
+  100% { transform: scale(1); opacity: 1; box-shadow: none; }
+}
+.entry-new {
+  animation: entryPop .5s cubic-bezier(.34,1.56,.64,1);
+}
+
+/* ── "Add Day" button — more prominent ── */
+button[onclick^="addEntry"] {
+  margin-top: 10px;
+  width: 100%;
+  justify-content: center;
+  padding: 12px !important;
+  font-size: 14px !important;
+  font-weight: 600 !important;
+  border-radius: var(--radius) !important;
+  border: 1.5px dashed var(--border) !important;
+  background: var(--surface-2) !important;
+  color: var(--text-soft) !important;
+  transition: all .18s ease;
+}
+button[onclick^="addEntry"]:hover {
+  background: var(--blue-bg) !important;
+  border-color: var(--blue) !important;
+  color: var(--blue) !important;
+  border-style: solid !important;
+}
 
