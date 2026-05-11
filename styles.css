@@ -2283,37 +2283,6 @@ textarea:focus {
 .cf-card[data-active="1"] .cf-qty-input { color: var(--blue) !important; }
 .cf-qty-input::placeholder { color: var(--muted) !important; }
 
-/* ── Rate override (₱/ea per row) ── */
-.cf-rate-override-col {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  flex-shrink: 0;
-}
-.cf-rate-input {
-  font-size: 11px !important;
-  font-family: var(--mono) !important;
-  font-weight: 600 !important;
-  padding: 3px 6px !important;
-  border-radius: 7px !important;
-  width: 58px !important;
-  border: 1.5px solid var(--border) !important;
-  background: var(--surface) !important;
-  color: var(--text-soft) !important;
-  text-align: right !important;
-  -moz-appearance: textfield !important;
-}
-.cf-rate-input::-webkit-outer-spin-button,
-.cf-rate-input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
-.cf-rate-input:focus {
-  outline: none !important;
-  border-color: var(--amber) !important;
-  color: var(--amber) !important;
-}
-.cf-card[data-active="1"] .cf-rate-input {
-  border-color: rgba(37,99,235,.2) !important;
-}
-
 /* ── Workers divider (÷ N) ── */
 .cf-workers-col {
   display: flex;
