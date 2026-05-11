@@ -686,6 +686,26 @@ async function updateEntry(pid, eid, key, val) {
   if (totals) totals.innerHTML = `<span>Base: <strong>${peso(c.base)}</strong></span><span>Com: <strong>${peso(c.commission)}</strong></span><span>OT: <strong>${peso(c.otPay)}</strong></span><span>Holiday: <strong>${peso(c.holiday)}</strong></span>`;
   const baseEl = document.querySelector(`#entry-${eid} .base-display`);
   if (baseEl) baseEl.textContent = peso(c.base);
+
+  // Live-update banner date + step indicator label when date field changes
+  if (key === "date") {
+    const bannerCenter = document.querySelector(`#entry-${eid} .edb-center`);
+    if (bannerCenter) {
+      const formatted = val ? new Date(val + "T00:00:00").toLocaleDateString("en-PH", { weekday: "long", month: "long", day: "numeric", year: "numeric" }) : "—";
+      bannerCenter.textContent = formatted;
+    }
+    const wrap = document.getElementById("entries-" + pid);
+    const stepEl = wrap && wrap.querySelector(".day-step-indicator");
+    if (stepEl) {
+      stepEl.querySelectorAll(".dsi-btn").forEach(btn => {
+        const m = (btn.getAttribute("onclick") || "").match(/entry-([a-zA-Z0-9_-]+)/);
+        if (m && m[1] === String(eid)) {
+          const labelEl = btn.querySelector(".dsi-label");
+          if (labelEl) labelEl.textContent = val ? new Date(val + "T00:00:00").toLocaleDateString("en-PH", { month: "short", day: "numeric" }) : "—";
+        }
+      });
+    }
+  }
   const t = calcPeriod(p);
   const sum = document.querySelector("#period-detail .period-summary");
   if (sum) sum.innerHTML = `
