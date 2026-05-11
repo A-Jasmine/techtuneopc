@@ -2070,6 +2070,23 @@ function exportPDF(pid) {
   });
   y = Math.max(eY, doc.lastAutoTable.finalY) + 14;
 
+  // Notes section — rendered below deductions on the right side
+  const notesEntries = p.entries.filter(e => e.notes && e.notes.trim());
+  if (notesEntries.length) {
+    const notesBody = notesEntries.map(e => [e.date, e.notes]);
+    const notesStartY = doc.lastAutoTable.finalY + 8;
+    doc.autoTable({
+      startY: notesStartY,
+      margin: { left: margin + halfW + 16 }, tableWidth: halfW, theme: "grid",
+      head: [["Date", "Notes"]],
+      body: notesBody,
+      headStyles: { fillColor: [30, 30, 30], textColor: 255, halign: "left", fontStyle: "bold" },
+      styles: { font: "helvetica", fontSize: 9, cellPadding: 5, lineColor: [180, 180, 180], lineWidth: 0.4, textColor: 20, overflow: "linebreak" },
+      columnStyles: { 0: { cellWidth: 50 }, 1: {} }
+    });
+    y = Math.max(eY, doc.lastAutoTable.finalY) + 14;
+  }
+
   // Net pay band
   doc.setFillColor(20, 20, 20); doc.rect(margin, y, pageW - margin * 2, 32, "F");
   doc.setTextColor(255); doc.setFont("helvetica", "bold"); doc.setFontSize(13);
@@ -2082,7 +2099,7 @@ function exportPDF(pid) {
   // Columns must sum to ≤ 761. Total below = 761.
   doc.autoTable({
     startY: y, margin: { left: margin, right: margin }, theme: "grid",
-    head: [["Date", "Location", "In", "Out", "Type", "Brand", "Sed", "MPV", "Sun", "Scr", "Tub", "OT Hrs", "OT Min", "Commission", "OT Pay", "Holiday", "Hol Notes", "Gas", "Notes", "Total"]],
+    head: [["Date", "Location", "In", "Out", "Type", "Brand", "Sed", "MPV", "Sun", "Scr", "Tub", "OT Hrs", "OT Min", "Commission", "OT Pay", "Holiday", "Hol Notes", "Gas", "Total"]],
     body: p.entries.map(e => {
       const c = calcEntry(e, emp.base_rate);
       const holidayType = e.holiday_type || (e.is_holiday ? "onsite" : "none");
@@ -2105,7 +2122,7 @@ function exportPDF(pid) {
       vSummary(vl.sedan), vSummary(vl.mpv), vSummary(vl.sunroof),
       vSummary(vl.scrap), vSummary(vl.tubes),
       otH || "—", otM || "—",
-      fmt(c.commission), fmt(c.otPay), fmt(c.holiday), e.holiday_notes || "—", fmt(c.gas), e.notes || "—", fmt(c.total)];
+      fmt(c.commission), fmt(c.otPay), fmt(c.holiday), e.holiday_notes || "—", fmt(c.gas), fmt(c.total)];
     }),
     headStyles: { fillColor: [30, 30, 30], textColor: 255, fontSize: 7.5, fontStyle: "bold", halign: "center" },
     styles: { font: "helvetica", fontSize: 7.5, cellPadding: 3.5, lineColor: [180, 180, 180], lineWidth: 0.3, textColor: 20, overflow: "linebreak" },
@@ -2129,8 +2146,7 @@ function exportPDF(pid) {
       15: { cellWidth: 44, halign: "right" },  // Holiday
       16: { cellWidth: 54 },                   // Hol Notes
       17: { cellWidth: 38, halign: "right" },  // Gas
-      18: { cellWidth: 54 },                   // Notes
-      19: { cellWidth: 52, halign: "right", fontStyle: "bold" } // Total
+      18: { cellWidth: 52, halign: "right", fontStyle: "bold" } // Total
     },
     didDrawPage: () => {
       doc.setFontSize(8); doc.setTextColor(110); doc.setFont("helvetica", "normal");
