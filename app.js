@@ -134,62 +134,17 @@ function parseVehicleLists(e) {
   return parsed;
 }
 
-// Sum rows for a single vehicle type, used only for UI preview per-card.
-// For the actual commission total, calcEntry uses calcCommissionGrouped() below.
-function sumVehicleRows(rows, rate, globalDiv) {
+// Sum all rows for a vehicle type.
+// Each row may carry its own `rate` override (set by the user per-row).
+// Falls back to the card-level `defaultRate` when row.rate is 0/unset.
+// Per-row div > 1 overrides the entry-level globalDiv.
+function sumVehicleRows(rows, defaultRate, globalDiv) {
   return (rows || []).reduce((s, row) => {
     const rowDiv = +row.div;
     const divisor = safeDiv(rowDiv > 1 ? rowDiv : globalDiv);
+    const rate = (+row.rate > 0) ? +row.rate : defaultRate;
     return s + round2((+row.qty || 0) * rate / divisor);
   }, 0);
-}
-
-// Commission calculation that groups ALL rows (across every vehicle type and
-// custom field) by their divisor, sums raw amounts within each group first,
-// then divides the group total once.
-//
-// Example: 8 units (÷2) + 1 sunroof (÷2) → (8×₱150 + 1×₱50) ÷ 2 = ₱625
-// vs the old per-row approach: 8×₱150÷2 + 1×₱50÷2 = ₱600 + ₱25 = ₱625
-// (same result when rates are uniform, but differs when mixed rates share a div)
-//
-// Rows with div=1 (solo, no split) are each their own "group" and are just
-// added directly: qty × rate.
-function calcCommissionGrouped(vl, r, unitsList, customFieldsForBrand, globalDiv) {
-  // Accumulator: divisor → raw subtotal before dividing
-  const groups = {};
-
-  function addToGroup(qty, rate, rowDiv) {
-    const divisor = safeDiv(rowDiv > 1 ? rowDiv : globalDiv);
-    const key = String(divisor);
-    groups[key] = (groups[key] || 0) + (qty * rate);
-  }
-
-  // Standard vehicle types
-  const typeRates = [
-    { key: "sedan",  rate: r.sedan  || 0 },
-    { key: "mpv",    rate: r.mpv    || 0 },
-    { key: "sunroof",rate: r.sunroof|| 0 },
-    { key: "scrap",  rate: r.scrap  || 0 },
-    { key: "tubes",  rate: TUBE_RATE },
-  ];
-  typeRates.forEach(({ key, rate }) => {
-    (vl[key] || []).forEach(row => addToGroup(+row.qty || 0, rate, +row.div));
-  });
-
-  // Custom fields
-  customFieldsForBrand.forEach(cf => {
-    (vl[cf.key] || []).forEach(row => addToGroup(+row.qty || 0, cf.rate || 0, +row.div));
-  });
-
-  // Units list (legacy units_list field)
-  unitsList.forEach(u => addToGroup(+u.qty || 0, r.units_rate || 0, +u.div));
-
-  // Now divide each group once and sum
-  return round2(
-    Object.entries(groups).reduce((total, [divisor, rawSum]) => {
-      return total + round2(rawSum / safeDiv(+divisor));
-    }, 0)
-  );
 }
 
 function getBrandRates(brandKey) {
@@ -208,14 +163,28 @@ function calcEntry(e, baseRate) {
   // Vehicle lists (multi-row dynamic fields)
   const vl = parseVehicleLists(e);
 
-  // Units list and custom fields
+  // Units list: each row has qty and div, rate comes from brand's units_rate
   const unitsList = parseUnitsList(e);
-  const customFieldsForBrand = getCustomFields(e.brand);
+  const unitsCommission = unitsList.reduce((sum, u) => {
+    const uRate = (+u.rate > 0) ? +u.rate : (r.units_rate || 0);
+    return sum + round2((+u.qty || 0) * uRate / safeDiv(+u.div || 1));
+  }, 0);
 
-  // Commission: group all rows across ALL vehicle types by their divisor.
-  // Rows sharing the same div are summed first, then divided once.
-  // e.g. 8 units(÷2) + 1 sunroof(÷2) = (1200+50)÷2 = 625, not 600+25.
-  const commission = calcCommissionGrouped(vl, r, unitsList, customFieldsForBrand, globalDiv);
+  // Custom field commissions
+  const customFieldsForBrand = getCustomFields(e.brand);
+  const customCommission = customFieldsForBrand.reduce((s, cf) => {
+    return s + sumVehicleRows(vl[cf.key] || [], cf.rate || 0, globalDiv);
+  }, 0);
+
+  const commission = round2(
+    sumVehicleRows(vl.sedan, r.sedan || 0, globalDiv) +
+    sumVehicleRows(vl.mpv, r.mpv || 0, globalDiv) +
+    sumVehicleRows(vl.sunroof, r.sunroof || 0, globalDiv) +
+    sumVehicleRows(vl.scrap, r.scrap || 0, globalDiv) +
+    sumVehicleRows(vl.tubes, TUBE_RATE, globalDiv) +
+    unitsCommission +
+    customCommission
+  );
   const otHrs = (+e.ot_hours || 0) + (+e.ot_minutes || 0) / 60;
   const otPay = round2(otHrs * (+e.ot_rate || otRateFromBase(baseRate)));
   // holiday_type: "onsite" = full pay + ₱1000 bonus, "offsite" = ₱1000 bonus only,
@@ -781,7 +750,9 @@ function addVehicleRow(pid, eid, type) {
   const p = state.periods.find(x => x.id === pid);
   const e = p.entries.find(x => x.id === eid);
   const vl = parseVehicleLists(e);
-  vl[type].push({ qty: 0, div: 1 });
+  const _r3 = getBrandRates(e.brand);
+  const _rateMap3 = { sedan: _r3.sedan||0, mpv: _r3.mpv||0, sunroof: _r3.sunroof||0, scrap: _r3.scrap||0, tubes: TUBE_RATE };
+  vl[type].push({ qty: 0, div: 1, rate: _rateMap3[type] || 0 });
   saveVehicleLists(pid, eid, vl);
   renderVehicleListUI(pid, eid, type);
 }
@@ -799,6 +770,7 @@ function updateVehicleRow(pid, eid, type, idx, field, val) {
   const vl = parseVehicleLists(e);
   if (!vl[type] || !vl[type][idx]) return;
   vl[type][idx][field] = field === "div" ? (+val || 1) : (+val || 0);
+  // keep rate as a number (0 means "use default")
   saveVehicleLists(pid, eid, vl);
 }
 function renderVehicleListUI(pid, eid, type) {
@@ -823,6 +795,7 @@ function renderVehicleListUI(pid, eid, type) {
   const rowsHTML = rows.map((row, i) => {
     const canRemove = !(i === 0 && rows.length === 1);
     const divOpts = Array.from({length:10},(_,k)=>k+1).map(n=>`<option value="${n}" ${(+row.div||1)===n?"selected":""}>${String.fromCharCode(247)}${n}</option>`).join("");
+    const rowRate = (+row.rate > 0) ? +row.rate : rate;
     return `
     <div class="cf-row${i > 0 ? " cf-row-extra" : ""}">
       <div class="cf-stepper">
@@ -836,6 +809,12 @@ function renderVehicleListUI(pid, eid, type) {
           onclick="cfStepQty('${pid}','${eid}','${type}',${i},1,this)">
           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
         </button>
+      </div>
+      <div class="cf-rate-override-col">
+        <span class="cf-divider-label">₱/ea</span>
+        <input class="cf-rate-input" type="number" min="0" value="${rowRate}" ${dis}
+          title="Rate per unit — change to override brand default"
+          onchange="updateVehicleRow('${pid}','${eid}','${type}',${i},'rate',this.value);updateEntryTotals('${pid}','${eid}')">
       </div>
       <div class="cf-workers-col">
         <span class="cf-divider-label">÷ workers</span>
@@ -919,6 +898,12 @@ function renderCustomFieldListsUI(pid, eid) {
             onclick="cfStepCustom('${pid}','${eid}','${cf.key}',${i},1,this)">
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
           </button>
+        </div>
+        <div class="cf-rate-override-col">
+          <span class="cf-divider-label">₱/ea</span>
+          <input class="cf-rate-input" type="number" min="0" value="${(+row.rate > 0) ? +row.rate : (cf.rate || 0)}" ${dis}
+            title="Rate per unit"
+            onchange="updateCustomFieldRow('${pid}','${eid}','${cf.key}',${i},'rate',this.value);updateEntryTotals('${pid}','${eid}')">
         </div>
         <div class="cf-workers-col">
           <span class="cf-divider-label">÷ workers</span>
@@ -1017,7 +1002,7 @@ function updateUnitsRow(pid, eid, idx, field, val) {
   const e = p.entries.find(x => x.id === eid);
   const list = parseUnitsList(e);
   if (!list[idx]) return;
-  if (field === "qty" || field === "div") val = +val || (field === "div" ? 1 : 0);
+  if (field === "qty" || field === "div" || field === "rate") val = +val || (field === "div" ? 1 : 0);
   list[idx][field] = val;
   updateEntry(pid, eid, "units_list", list);
   updateEntryTotals(pid, eid);
@@ -1074,6 +1059,12 @@ function renderUnitsListUI(pid, eid) {
             onclick="cfStepUnits('${pid}','${eid}',${i},1,this)">
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
           </button>
+        </div>
+        <div class="cf-rate-override-col">
+          <span class="cf-divider-label">₱/ea</span>
+          <input class="cf-rate-input" type="number" min="0" value="${(+u.rate > 0) ? +u.rate : (r.units_rate || 0)}" ${disAttr}
+            title="Rate per unit"
+            onchange="updateUnitsRow('${pid}','${eid}',${i},'rate',this.value);updateEntryTotals('${pid}','${eid}')">
         </div>
         <div class="cf-workers-col">
           <span class="cf-divider-label">÷ workers</span>
