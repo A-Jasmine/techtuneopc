@@ -3039,3 +3039,50 @@ button[onclick^="addEntry"]:hover {
   border-style: solid !important;
 }
 
+
+/* ── Scroll-to-Bottom floating button ── */
+#scroll-to-bottom-btn {
+  position: fixed;
+  bottom: 28px;
+  right: 28px;
+  z-index: 1200;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  border: none;
+  background: var(--accent, #2563eb);
+  color: #fff;
+  box-shadow: 0 4px 20px rgba(37,99,235,0.28), 0 1px 4px rgba(0,0,0,0.12);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.22s, transform 0.22s, box-shadow 0.18s;
+  transform: translateY(8px);
+}
+#scroll-to-bottom-btn:hover {
+  background: var(--accent-dark, #1d4ed8);
+  box-shadow: 0 6px 24px rgba(37,99,235,0.38);
+  transform: translateY(-1px) !important;
+}
+
+/* ── Settings: Save button unsaved highlight ── */
+#settings-save-btn.unsaved-highlight {
+  animation: settingsPulse 2s ease-in-out infinite;
+  box-shadow: 0 0 0 3px rgba(37,99,235,0.25);
+}
+@keyframes settingsPulse {
+  0%, 100% { box-shadow: 0 0 0 3px rgba(37,99,235,0.2); }
+  50%       { box-shadow: 0 0 0 6px rgba(37,99,235,0.08); }
+}
+
+/* ── Add Day button wrapper ── */
+#add-day-btn-wrap > button:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+  background: var(--surface-2) !important;
+  color: var(--text-dim) !important;
+  border: 1.5px dashed var(--border) !important;
+}

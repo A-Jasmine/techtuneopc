@@ -265,7 +265,26 @@ function toggleTheme() {
 
 
 document.querySelectorAll(".tab").forEach(t => {
-  t.onclick = () => {
+  t.onclick = async () => {
+    // Warn if leaving settings with unsaved changes
+    if (_settingsHasUnsaved && t.dataset.tab !== "settings") {
+      const ok = await confirmDanger({
+        title: "Unsaved Settings",
+        message: "You have unsaved changes in Settings. Are you sure you want to leave without saving?",
+        confirmText: "Leave",
+        cancelText: "Stay & Save",
+      });
+      if (!ok) {
+        // Snap back to settings
+        document.querySelectorAll(".tab").forEach(x => x.classList.remove("active"));
+        document.querySelectorAll(".view").forEach(x => x.classList.remove("active"));
+        document.querySelector('.tab[data-tab="settings"]').classList.add("active");
+        document.getElementById("view-settings").classList.add("active");
+        return;
+      }
+      // User chose to leave — discard dirty state silently
+      _settingsHasUnsaved = false;
+    }
     document.querySelectorAll(".tab").forEach(x => x.classList.remove("active"));
     document.querySelectorAll(".view").forEach(x => x.classList.remove("active"));
     t.classList.add("active");
@@ -562,13 +581,13 @@ function editPeriod(id) {
 
       <div class="section-label"><i data-lucide="list"></i> Daily Work Log</div>
       <div id="entries-${p.id}"></div>
-      <button class="btn primary" onclick="addEntry('${p.id}')"><i data-lucide="plus"></i> Add Day</button>
+      <div id="add-day-btn-wrap-${p.id}" style="display:flex;align-items:center;gap:10px"><button class="btn primary" id="add-day-btn-${p.id}" onclick="addEntry('${p.id}')"><i data-lucide="plus"></i> Add Day</button><span id="add-day-hint-${p.id}" style="font-size:11px;color:var(--text-dim)"></span></div>
 
       <div class="section-label" style="margin-top:22px"><i data-lucide="minus-circle"></i> Deductions</div>
       <div id="deds-${p.id}"></div>
       <button class="btn" onclick="addDed('${p.id}')"><i data-lucide="plus"></i> Add Deduction</button>
     </div>`;
-  renderEntries(p.id); renderDeds(p.id); lucide.createIcons();
+  renderEntries(p.id); renderDeds(p.id); updateAddDayButton(p.id); lucide.createIcons();
 
   // ── Floating Net Pay pill ──
   // Remove any stale one first
@@ -619,12 +638,84 @@ const DEFAULT_BRAND_KEY = () => {
   return brands.length ? brands[0].key : "geely";
 };
 const DEFAULT_UNITS = () => COMMISSION_RATES[DEFAULT_BRAND_KEY()] || {};
+// Update the "Add Day" button state for a period (disabled + hint when range full)
+function updateAddDayButton(pid) {
+  const p = state.periods.find(x => x.id === pid);
+  if (!p) return;
+  const btn = document.getElementById(`add-day-btn-${pid}`);
+  const hint = document.getElementById(`add-day-hint-${pid}`);
+  if (!btn) return;
+  if (p.start_date && p.end_date && allDatesUsed(p)) {
+    btn.disabled = true;
+    btn.classList.remove("primary");
+    btn.innerHTML = `<i data-lucide="check-circle"></i> All Dates Added`;
+    if (hint) hint.textContent = "All dates in this range have been used.";
+  } else {
+    btn.disabled = false;
+    btn.classList.add("primary");
+    btn.innerHTML = `<i data-lucide="plus"></i> Add Day`;
+    if (hint && p.start_date && p.end_date) {
+      const next = getNextEntryDate(p);
+      hint.textContent = `Next: ${next}`;
+    } else if (hint) {
+      hint.textContent = "";
+    }
+  }
+  if (window.lucide) lucide.createIcons();
+}
+
+// ── Sequential date helper ──────────────────────────────────────────────────
+// Returns the next date to assign when "Add Day" is clicked for a period.
+// Steps through start_date → end_date sequentially, skipping already-used dates.
+// Falls back to today if the period has no date range set.
+function getNextEntryDate(p) {
+  if (!p.start_date || !p.end_date) return new Date().toISOString().slice(0, 10);
+  const usedDates = new Set((p.entries || []).map(e => e.date));
+  // Walk from start to end, find first unused date
+  let cur = new Date(p.start_date + "T00:00:00");
+  const end = new Date(p.end_date + "T00:00:00");
+  while (cur <= end) {
+    const ds = cur.toISOString().slice(0, 10);
+    if (!usedDates.has(ds)) return ds;
+    cur.setDate(cur.getDate() + 1);
+  }
+  // All dates in range used — return the day after the last entry (overflow)
+  const lastEntry = [...(p.entries || [])].sort((a, b) => a.date > b.date ? 1 : -1).slice(-1)[0];
+  if (lastEntry) {
+    const d = new Date(lastEntry.date + "T00:00:00");
+    d.setDate(d.getDate() + 1);
+    return d.toISOString().slice(0, 10);
+  }
+  return new Date().toISOString().slice(0, 10);
+}
+
+// Returns true when all dates in [start_date, end_date] are occupied.
+function allDatesUsed(p) {
+  if (!p.start_date || !p.end_date) return false;
+  const usedDates = new Set((p.entries || []).map(e => e.date));
+  let cur = new Date(p.start_date + "T00:00:00");
+  const end = new Date(p.end_date + "T00:00:00");
+  while (cur <= end) {
+    if (!usedDates.has(cur.toISOString().slice(0, 10))) return false;
+    cur.setDate(cur.getDate() + 1);
+  }
+  return true;
+}
+
 async function addEntry(pid) {
   const p = state.periods.find(x => x.id === pid);
+
+  // Check if all dates in the range are already used
+  if (p.start_date && p.end_date && allDatesUsed(p)) {
+    toast("All dates in this period have been added.");
+    return;
+  }
+
   const emp = state.employees.find(e => e.id === p.employee_id);
   const defaultBrand = DEFAULT_BRAND_KEY();
+  const nextDate = getNextEntryDate(p);
   const newEntry = {
-    pay_period_id: pid, date: new Date().toISOString().slice(0, 10), location: "Calamba",
+    pay_period_id: pid, date: nextDate, location: "Calamba",
     time_in: "08:00", time_out: "17:00", ot_hours: 0, ot_minutes: 0, ot_rate: otRateFromBase(emp.base_rate),
     brand: defaultBrand,
     sedan_qty: DEFAULT_UNITS().sedan_qty || 0,
@@ -1539,6 +1630,7 @@ function renderEarningsHistory() {
 function renderSettings() {
   const el = document.getElementById("settings-content");
   if (!el) return;
+  _settingsHasUnsaved = false; // reset on re-render
   el.innerHTML = `
     <div class="card" id="brand-mgmt-card">
       <div class="card-head">
@@ -1546,7 +1638,13 @@ function renderSettings() {
           <h2><i data-lucide="tag"></i> Brand Management</h2>
           <small>Configure commission rates per brand. All brands appear dynamically in payroll entries.</small>
         </div>
-        <button class="btn primary" onclick="saveSettings()"><i data-lucide="save"></i> Save All</button>
+        <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+          <div id="settings-unsaved-warn" style="display:none;align-items:center;gap:6px;background:var(--amber-soft,#fef3c7);border:1px solid var(--amber,#f59e0b);border-radius:8px;padding:6px 12px;font-size:12px;font-weight:600;color:#92400e">
+            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+            You have unsaved changes.
+          </div>
+          <button class="btn primary" id="settings-save-btn" onclick="saveSettings()"><i data-lucide="save"></i> Save All</button>
+        </div>
       </div>
       <div id="brand-mgmt-body" style="display:grid;gap:0"></div>
       <div style="padding:20px 4px 4px;display:flex;flex-wrap:wrap;gap:10px;align-items:flex-end">
@@ -1567,6 +1665,8 @@ function renderSettings() {
     </div>`;
   renderBrandMgmtBody();
   lucide.createIcons();
+  // Attach change listeners after DOM is built
+  requestAnimationFrame(() => attachSettingsChangeListeners());
 }
 
 const RATE_FIELDS = [
@@ -1646,6 +1746,7 @@ function renderBrandMgmtBody() {
       </div>`;
   }).join("");
   lucide.createIcons();
+  requestAnimationFrame(() => attachSettingsChangeListeners());
 }
 
 function addBrandCustomField(brandKey) {
@@ -1779,6 +1880,7 @@ function saveSettings() {
   BYD = COMMISSION_RATES.byd || {};
   GEELY = COMMISSION_RATES.geely || {};
   saveCommissionRates(COMMISSION_RATES);
+  clearSettingsDirty();
   toast("Commission rates & defaults saved ✓");
 }
 
@@ -2173,6 +2275,102 @@ function exportPDF(pid) {
 
 // =============== UTILITY ===============
 function toast(msg) { const el = document.getElementById("toast"); el.textContent = msg; el.classList.add("show"); setTimeout(() => el.classList.remove("show"), 2400); }
+
+// ── Scroll-to-Bottom floating button ──────────────────────────────────────
+(function initScrollToBottom() {
+  // Inject the button after DOM is ready
+  const btn = document.createElement("button");
+  btn.id = "scroll-to-bottom-btn";
+  btn.title = "Scroll to bottom";
+  btn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><polyline points="19 12 12 19 5 12"/></svg>`;
+  btn.style.cssText = `
+    position: fixed;
+    bottom: 28px;
+    right: 28px;
+    z-index: 1200;
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+    border: none;
+    background: var(--accent, #2563eb);
+    color: #fff;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.18);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.2s, transform 0.2s;
+    transform: translateY(8px);
+  `;
+  btn.onclick = () => window.scrollTo({ top: document.body.scrollHeight, behavior: "smooth" });
+
+  document.addEventListener("DOMContentLoaded", () => {
+    document.body.appendChild(btn);
+
+    const onScroll = () => {
+      const scrolled = window.scrollY || document.documentElement.scrollTop;
+      const maxScroll = document.documentElement.scrollHeight - window.innerHeight;
+      // Show button when user is NOT near the bottom (more than 300px from bottom)
+      const nearBottom = maxScroll - scrolled < 300;
+      const hasRoom = maxScroll > 200; // page is tall enough to bother
+      if (!nearBottom && hasRoom) {
+        btn.style.opacity = "1";
+        btn.style.pointerEvents = "auto";
+        btn.style.transform = "translateY(0)";
+      } else {
+        btn.style.opacity = "0";
+        btn.style.pointerEvents = "none";
+        btn.style.transform = "translateY(8px)";
+      }
+    };
+    window.addEventListener("scroll", onScroll, { passive: true });
+    onScroll();
+  });
+})();
+
+// ── Settings Unsaved Changes Detection ────────────────────────────────────
+let _settingsHasUnsaved = false;
+
+function markSettingsDirty() {
+  if (_settingsHasUnsaved) return;
+  _settingsHasUnsaved = true;
+  const warn = document.getElementById("settings-unsaved-warn");
+  const saveBtn = document.getElementById("settings-save-btn");
+  if (warn) { warn.style.display = "flex"; }
+  if (saveBtn) { saveBtn.classList.add("unsaved-highlight"); }
+}
+
+function clearSettingsDirty() {
+  _settingsHasUnsaved = false;
+  const warn = document.getElementById("settings-unsaved-warn");
+  const saveBtn = document.getElementById("settings-save-btn");
+  if (warn) warn.style.display = "none";
+  if (saveBtn) saveBtn.classList.remove("unsaved-highlight");
+}
+
+// Attach input listeners to all settings inputs after render
+function attachSettingsChangeListeners() {
+  const card = document.getElementById("brand-mgmt-card");
+  if (!card) return;
+  card.querySelectorAll("input, select").forEach(el => {
+    // skip brand-preset-sel and brand-custom-input (they're add-brand controls, not rate fields)
+    if (el.id === "brand-preset-sel" || el.id === "brand-custom-input") return;
+    el.addEventListener("input", markSettingsDirty, { once: false });
+    el.addEventListener("change", markSettingsDirty, { once: false });
+  });
+}
+
+// beforeunload guard
+window.addEventListener("beforeunload", (e) => {
+  if (_settingsHasUnsaved) {
+    e.preventDefault();
+    e.returnValue = "Changes are not yet saved. Are you sure you want to leave?";
+    return e.returnValue;
+  }
+});
+
 
 async function renderAll() { renderEmployees(); renderPayroll(); renderDashboard(); }
 
