@@ -73,10 +73,12 @@ function updateGreetingBanner() {
   const now    = getPhilippineTime();
   const hour   = now.getHours();
   const min    = now.getMinutes();
+  const sec    = now.getSeconds();
   const period = getTimeOfDay(hour);
 
   const h12  = hour % 12 || 12;
   const mm   = String(min).padStart(2, "0");
+  const ss   = String(sec).padStart(2, "0");
   const ampm = hour < 12 ? "AM" : "PM";
 
   const titleEl = document.getElementById("greeting-title");
@@ -89,7 +91,7 @@ function updateGreetingBanner() {
   titleEl.textContent = TIME_LABEL[period] + ", Thalia.";
   msgEl.textContent   = getDailyMessage(period);
   emojiEl.textContent = TIME_EMOJI[period];
-  timeEl.textContent  = h12 + ":" + mm;
+  timeEl.textContent  = h12 + ":" + mm + ":" + ss;
   ampmEl.textContent  = ampm;
 
   const banner = document.getElementById("greeting-banner");
@@ -99,7 +101,7 @@ function updateGreetingBanner() {
 function startGreetingClock() {
   updateGreetingBanner();
   if (_greetingClockInterval) clearInterval(_greetingClockInterval);
-  _greetingClockInterval = setInterval(updateGreetingBanner, 30000);
+  _greetingClockInterval = setInterval(updateGreetingBanner, 1000);
 }
 
 // =============== CONSTANTS ===============
