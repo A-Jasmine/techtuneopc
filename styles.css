@@ -339,7 +339,6 @@ small {
   display: flex;
   align-items: center;
   gap: 20px;
-  flex-wrap: wrap;
   padding: 0 32px;
   height: 64px;
   background: rgba(255, 255, 255, .94);
@@ -392,7 +391,9 @@ small {
 
 /* ── TABS ── */
 .tabs {
-  margin-left: auto;
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
   display: flex;
   align-items: center;
   gap: 2px;
@@ -1342,10 +1343,15 @@ textarea:focus {
   }
 
   .tabs {
+    position: static;
+    transform: none;
     width: 100%;
-    overflow: auto;
-    margin-left: 0;
+    overflow-x: auto;
+    overflow-y: hidden;
+    scrollbar-width: none;
+    justify-content: flex-start;
   }
+  .tabs::-webkit-scrollbar { display: none; }
 
   main {
     padding: 20px 14px 60px;
@@ -1610,6 +1616,7 @@ textarea:focus {
   display: flex;
   align-items: center;
   gap: 12px;
+  flex-shrink: 0;
 }
 .user-email {
   font-size: 12px;
