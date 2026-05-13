@@ -339,7 +339,6 @@ small {
   display: flex;
   align-items: center;
   gap: 20px;
-  flex-wrap: wrap;
   padding: 0 32px;
   height: 64px;
   background: rgba(255, 255, 255, .94);
@@ -388,6 +387,11 @@ small {
   letter-spacing: .5px;
   text-transform: uppercase;
   font-weight: 500;
+}
+
+/* topbar-row1 is transparent on desktop — just a flex passthrough */
+.topbar-row1 {
+  display: contents;
 }
 
 /* ── TABS ── */
@@ -1334,18 +1338,64 @@ textarea:focus {
 
 /* ── MOBILE ── */
 @media (max-width: 768px) {
+  /* ── Topbar: two-row layout on mobile ── */
   .topbar {
-    padding: 0 16px;
+    flex-direction: column;
+    align-items: stretch;
     height: auto;
-    padding-top: 14px;
-    padding-bottom: 14px;
+    padding: 12px 16px 0;
+    gap: 0;
   }
 
-  .tabs {
+  /* Row 1: brand + user controls side by side */
+  .topbar-row1 {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
     width: 100%;
-    overflow: auto;
-    margin-left: 0;
+    padding-bottom: 10px;
   }
+
+  /* Row 2: tabs pill — scrollable, no scrollbar visible */
+  .tabs {
+    width: calc(100% + 32px);
+    margin-left: -16px;
+    margin-right: -16px;
+    border-radius: 0;
+    border-left: none;
+    border-right: none;
+    border-top: 1px solid var(--border);
+    border-bottom: none;
+    background: var(--surface-2);
+    overflow-x: auto;
+    overflow-y: hidden;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+    padding: 6px 12px;
+    gap: 2px;
+    justify-content: flex-start;
+    border-top-left-radius: 0;
+    border-top-right-radius: 0;
+  }
+  .tabs::-webkit-scrollbar { display: none; }
+
+  .tab {
+    flex-shrink: 0;
+    padding: 7px 14px;
+    font-size: 12.5px;
+  }
+
+  /* Hide email on mobile — too cramped */
+  .user-email { display: none; }
+
+  /* User-menu: tighten gap */
+  .user-menu {
+    margin-left: 0;
+    gap: 8px;
+  }
+
+  /* Brand: hide subtitle on very small screens */
+  .brand h1 { font-size: 13px; }
 
   main {
     padding: 20px 14px 60px;
@@ -1370,6 +1420,11 @@ textarea:focus {
   .grid-2 {
     grid-template-columns: 1fr;
   }
+}
+
+@media (max-width: 400px) {
+  .brand small { display: none; }
+  .brand h1 { font-size: 12px; }
 }
 
 /* ───────────────── ENHANCED ACCENTS (v2) ───────────────── */
@@ -3180,97 +3235,4 @@ button[onclick^="addEntry"]:hover {
 [data-theme="dark"] .toggle-check.tone-red.is-checked .toggle-box {
   background: #ef4444 !important;
   border-color: #ef4444 !important;
-}
-
-
-/* ══════════════════════════════════════════════════════════════
-   GREETING BANNER
-   ══════════════════════════════════════════════════════════════ */
-
-.greeting-banner {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16px;
-  padding: 10px 4px 18px;
-  margin-bottom: 4px;
-  background: none;
-  border: none;
-  box-shadow: none;
-}
-
-.greeting-left {
-  display: flex;
-  align-items: center;
-  gap: 16px;
-  flex: 1;
-  min-width: 0;
-}
-
-.greeting-emoji {
-  font-size: 32px;
-  line-height: 1;
-  flex-shrink: 0;
-  filter: drop-shadow(0 2px 4px rgba(0,0,0,.10));
-}
-
-.greeting-text {
-  min-width: 0;
-}
-
-.greeting-text h2 {
-  font-size: 17px;
-  font-weight: 700;
-  color: var(--text);
-  margin: 0 0 3px;
-  letter-spacing: -0.3px;
-  line-height: 1.25;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.greeting-text p {
-  font-size: 12.5px;
-  color: var(--text-soft);
-  margin: 0;
-  line-height: 1.5;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.greeting-clock {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  flex-shrink: 0;
-  gap: 0;
-  line-height: 1;
-}
-
-.greeting-clock span {
-  font-family: var(--mono);
-  font-size: 30px;
-  font-weight: 600;
-  letter-spacing: -1px;
-  color: var(--text);
-  line-height: 1;
-}
-
-.greeting-clock small {
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 1px;
-  text-transform: uppercase;
-  color: var(--text-dim);
-  margin-top: 2px;
-}
-
-@media (max-width: 600px) {
-  .greeting-banner { flex-direction: column; align-items: flex-start; gap: 12px; padding: 18px 18px; }
-  .greeting-clock  { align-items: flex-start; flex-direction: row; align-items: center; gap: 6px; }
-  .greeting-clock span { font-size: 22px; }
-  .greeting-text h2 { font-size: 15px; white-space: normal; }
-  .greeting-text p  { white-space: normal; }
 }
