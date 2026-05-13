@@ -3224,6 +3224,13 @@ button[onclick^="addEntry"]:hover {
   flex-direction: column;
   align-items: flex-end;
   flex-shrink: 0;
+  gap: 4px;
+}
+
+.greeting-clock-row {
+  display: flex;
+  align-items: baseline;
+  gap: 5px;
   line-height: 1;
 }
 
@@ -3242,7 +3249,16 @@ button[onclick^="addEntry"]:hover {
   letter-spacing: 1px;
   text-transform: uppercase;
   color: var(--text-dim);
-  margin-top: 2px;
+}
+
+.greeting-date-side {
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--text-dim);
+  letter-spacing: .3px;
+  text-transform: uppercase;
+  margin: 0;
+  text-align: right;
 }
 
 @media (max-width: 600px) {
