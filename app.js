@@ -71,6 +71,7 @@ const otRateFromBase = b => round2((b || 1000) / 6.4);
 
 // =============== CALC ===============
 function calcEntryBase(e, baseRate) {
+  if (e.is_absent) return 0;       // Absent: no base pay for this day
   if (e.is_offset) return OFFSET_AMT;
   // holiday_type "offsite" = employee didn't come in; only holiday bonus applies, no base pay
   const holidayType = e.holiday_type || (e.is_holiday ? "onsite" : "none");
@@ -185,6 +186,11 @@ function calcEntry(e, baseRate) {
     unitsCommission +
     customCommission
   );
+  // Absent: zero OT, zero holiday bonus, zero commission — just return early
+  if (e.is_absent) {
+    const base = 0;
+    return { base, commission: 0, otPay: 0, holiday: 0, gas: 0, total: 0 };
+  }
   const otHrs = (+e.ot_hours || 0) + (+e.ot_minutes || 0) / 60;
   const otPay = round2(otHrs * (+e.ot_rate || otRateFromBase(baseRate)));
   // holiday_type: "onsite" = full pay + ₱1000 bonus, "offsite" = ₱1000 bonus only,
@@ -293,9 +299,7 @@ document.querySelectorAll(".tab").forEach(t => {
     const fnp = document.getElementById("floating-net-pay");
     if (fnp && fnp._ioCleanup) fnp._ioCleanup();
     if (t.dataset.tab === "dashboard") renderDashboard();
-    if (t.dataset.tab === "payroll")   renderPayroll();
-    if (t.dataset.tab === "employees") renderEmployees();
-    if (t.dataset.tab === "settings")  renderSettings();
+    if (t.dataset.tab === "settings") renderSettings();
   };
 });
 
@@ -537,11 +541,12 @@ function editPeriod(id) {
   const t = calcPeriod(p);
 
   // Attendance summary chips
-  const fullDays = p.entries.filter(e => !e.is_halfday && !e.is_holiday && !e.is_offset).length;
+  const fullDays = p.entries.filter(e => !e.is_halfday && !e.is_holiday && !e.is_offset && !e.is_absent).length;
   const halfDays = p.entries.filter(e => e.is_halfday).length;
   const holidayDays = p.entries.filter(e => e.is_holiday && e.holiday_type !== "special").length;
   const specialDays = p.entries.filter(e => (e.holiday_type || "") === "special").length;
   const offsetDays = p.entries.filter(e => e.is_offset).length;
+  const absentDays = p.entries.filter(e => e.is_absent).length;
   const attendanceChips = `
     <div class="attendance-chips">
       <span class="chip chip-full"><i data-lucide="sun"></i> ${fullDays} Full</span>
@@ -549,11 +554,12 @@ function editPeriod(id) {
       ${holidayDays ? `<span class="chip chip-holiday"><i data-lucide="star"></i> ${holidayDays} Holiday</span>` : ""}
       ${specialDays ? `<span class="chip chip-half"><i data-lucide="calendar-heart"></i> ${specialDays} Special Hol</span>` : ""}
       ${offsetDays ? `<span class="chip chip-offset"><i data-lucide="refresh-cw"></i> ${offsetDays} Offset</span>` : ""}
+      ${absentDays ? `<span class="chip chip-absent"><i data-lucide="user-x"></i> ${absentDays} Absent</span>` : ""}
     </div>`;
 
   const div = document.getElementById("period-detail");
   div.innerHTML = `
-    <div class="period-card" data-period-id="${p.id}">
+    <div class="period-card">
       <div class="card-head">
         <div>
           <h2><i data-lucide="calendar"></i> ${emp.name} — Pay Period</h2>
@@ -729,7 +735,7 @@ async function addEntry(pid) {
     vehicle_lists: JSON.stringify({ sedan: [], mpv: [], sunroof: [], scrap: [], tubes: [] }),
     divide_by: 1,
     sedan_div: 1, mpv_div: 1, sunroof_div: 1, scrap_div: 1, tubes_div: 1,
-    gas_allowance: 0, is_holiday: false, is_offset: false, is_halfday: false,
+    gas_allowance: 0, is_holiday: false, is_offset: false, is_halfday: false, is_absent: false,
     holiday_type: "none", holiday_notes: "", notes: ""
   };
   const { data: { user: _u4 } } = await sb.auth.getUser();
@@ -761,7 +767,7 @@ async function delEntry(pid, eid) {
 }
 
 const NUMERIC_KEYS = ["sedan_qty", "mpv_qty", "sunroof_qty", "scrapping_qty", "tubes_qty", "divide_by", "sedan_div", "mpv_div", "sunroof_div", "scrap_div", "tubes_div", "ot_hours", "ot_minutes", "gas_allowance", "ot_rate"];
-const BOOL_KEYS = ["is_holiday", "is_offset", "is_halfday"];
+const BOOL_KEYS = ["is_holiday", "is_offset", "is_halfday", "is_absent"];
 const STRING_KEYS = ["holiday_type", "holiday_notes"];
 
 async function updateEntry(pid, eid, key, val) {
@@ -1240,18 +1246,21 @@ function renderEntries(pid) {
     const items = p.entries.map((e, idx) => {
       const dayNum = idx + 1;
       const dateShort = e.date ? new Date(e.date + "T00:00:00").toLocaleDateString("en-PH", { month: "short", day: "numeric" }) : `Day ${dayNum}`;
-      // "Complete" = has a non-zero total
+      // "Complete" = has a non-zero total; "Absent" = own class
       const c2 = calcEntry(e, baseRate);
-      const isComplete = c2.total > 0;
-      const stateClass = isComplete ? "dsi-complete" : "";
+      const isAbsent2 = !!e.is_absent;
+      const isComplete = !isAbsent2 && c2.total > 0;
+      const stateClass = isAbsent2 ? "dsi-absent" : isComplete ? "dsi-complete" : "";
       const connector = idx < p.entries.length - 1 ? `<div class="dsi-connector"></div>` : "";
       return `
         <div class="dsi-item">
           <button class="dsi-btn ${stateClass}" onclick="document.getElementById('entry-${e.id}').scrollIntoView({behavior:'smooth',block:'center'})" title="Go to Day ${dayNum}">
             <div class="dsi-circle" data-day="${dayNum}">
-              ${isComplete
-                ? `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg>`
-                : dayNum}
+              ${isAbsent2
+                ? `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>`
+                : isComplete
+                  ? `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg>`
+                  : dayNum}
               <div class="dsi-dot"></div>
             </div>
             <span class="dsi-label">${dateShort}</span>
@@ -1266,7 +1275,8 @@ function renderEntries(pid) {
     const c = calcEntry(e, baseRate);
     const holidayType = e.holiday_type || (e.is_holiday ? "onsite" : "none");
     const isOffsite = holidayType === "offsite";
-    const baseLabel = e.is_offset ? `Offset day`
+    const baseLabel = e.is_absent ? `Absent · ₱0 (no pay)`
+      : e.is_offset ? `Offset day`
       : holidayType === "offsite" ? `Holiday Offsite · ₱0 base (holiday bonus only)`
         : holidayType === "onsite" ? (e.is_halfday ? `Holiday Onsite · Half day · ₱${(baseRate / 2).toLocaleString()}` : `Holiday Onsite · ₱${baseRate.toLocaleString()}`)
           : holidayType === "special" ? (e.is_halfday ? `Special Holiday · Half day · ₱${(baseRate / 2).toLocaleString()} + ${Math.round(baseRate * 0.3)}` : `Special Holiday · ₱${baseRate.toLocaleString()} + ₱${Math.round(baseRate * 0.3)} bonus`)
@@ -1291,17 +1301,20 @@ function renderEntries(pid) {
       `<option value="${b.key}" ${e.brand === b.key ? "selected" : ""}>${b.label}</option>`
     ).join("");
 
-    const offOpacity = isOffsite ? "opacity:.38;pointer-events:none;user-select:none" : "";
+    const isAbsent = !!e.is_absent;
+    const offOpacity = (isOffsite || isAbsent) ? "opacity:.38;pointer-events:none;user-select:none" : "";
 
     // Banner: Day N | weekday date | status + delete
     const dayNum = entryIdx + 1;
     const dateStr = e.date ? new Date(e.date + "T00:00:00").toLocaleDateString("en-PH", { weekday: "long", month: "long", day: "numeric", year: "numeric" }) : "—";
     const isComplete = c.total > 0;
-    const statusBadge = isComplete
-      ? `<span class="edb-status edb-status-complete"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg> Complete</span>`
-      : `<span class="edb-status edb-status-draft">Draft</span>`;
+    const statusBadge = isAbsent
+      ? `<span class="edb-status edb-status-absent"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg> Absent</span>`
+      : isComplete
+        ? `<span class="edb-status edb-status-complete"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg> Complete</span>`
+        : `<span class="edb-status edb-status-draft">Draft</span>`;
 
-    return `<div class="entry${isOffsite ? ' entry-offsite' : ''}" id="entry-${e.id}">
+    return `<div class="entry${isOffsite ? ' entry-offsite' : ''}${isAbsent ? ' entry-absent' : ''}" id="entry-${e.id}">
       <div class="entry-day-banner">
         <span class="edb-left">Day ${String(dayNum).padStart(2, '0')}</span>
         <span class="edb-center">${dateStr}</span>
@@ -1325,13 +1338,18 @@ function renderEntries(pid) {
       <div class="entry-section">
         <h4>Day Type</h4>
         <div class="daytype-row1">
-          <label class="toggle-check tone-amber ${e.is_halfday && !isOffsite ? 'is-checked' : ''}" style="${isOffsite ? offOpacity : ''}">
-            <input type="checkbox" ${e.is_halfday ? "checked" : ""} ${isOffsite ? "disabled" : ""} onchange="updateEntry('${pid}','${e.id}','is_halfday',this.checked);this.closest('.toggle-check').classList.toggle('is-checked',this.checked)">
+          <label class="toggle-check tone-amber ${e.is_halfday && !isOffsite && !isAbsent ? 'is-checked' : ''}" style="${(isOffsite || isAbsent) ? offOpacity : ''}">
+            <input type="checkbox" ${e.is_halfday ? "checked" : ""} ${(isOffsite || isAbsent) ? "disabled" : ""} onchange="updateEntry('${pid}','${e.id}','is_halfday',this.checked);this.closest('.toggle-check').classList.toggle('is-checked',this.checked)">
             <span class="toggle-box"><svg viewBox="0 0 14 12" fill="none"><polyline points="2,6.5 5.5,10 12,2.5" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
             Half Day
           </label>
-          <label class="toggle-check tone-blue ${e.is_offset ? "is-checked" : ""}">
-            <input type="checkbox" ${e.is_offset ? "checked" : ""} onchange="updateEntry('${pid}','${e.id}','is_offset',this.checked);this.closest('.toggle-check').classList.toggle('is-checked',this.checked)">
+          <label class="toggle-check tone-red ${e.is_absent ? "is-checked" : ""}">
+            <input type="checkbox" ${e.is_absent ? "checked" : ""} onchange="onAbsentChange('${pid}','${e.id}',this.checked);this.closest('.toggle-check').classList.toggle('is-checked',this.checked)">
+            <span class="toggle-box"><svg viewBox="0 0 14 12" fill="none"><polyline points="2,6.5 5.5,10 12,2.5" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+            Absent
+          </label>
+          <label class="toggle-check tone-blue ${e.is_offset ? "is-checked" : ""}" style="${isAbsent ? offOpacity : ''}">
+            <input type="checkbox" ${e.is_offset ? "checked" : ""} ${isAbsent ? "disabled" : ""} onchange="updateEntry('${pid}','${e.id}','is_offset',this.checked);this.closest('.toggle-check').classList.toggle('is-checked',this.checked)">
             <span class="toggle-box"><svg viewBox="0 0 14 12" fill="none"><polyline points="2,6.5 5.5,10 12,2.5" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
             Offset (₱1,000)
           </label>
@@ -1346,6 +1364,7 @@ function renderEntries(pid) {
           <label class="daytype-holiday-label">
             <span>Holiday Pay</span>
             <select onchange="onHolidayTypeChange('${pid}','${e.id}',this.value)"
+              ${isAbsent ? "disabled" : ""}
               class="holiday-type-sel htype-${holidayType}"
               style="${holidayType === 'offsite' ? 'border-color:var(--purple);background:var(--purple-bg);color:var(--purple)' : holidayType === 'onsite' ? 'border-color:var(--green);background:var(--green-bg);color:var(--green)' : holidayType === 'special' ? 'border-color:var(--amber);background:var(--amber-bg);color:var(--amber)' : holidayType === 'regular' ? 'border-color:#dc2626;background:#fef2f2;color:#dc2626' : ''}">
               <option value="none"    ${holidayType === "none" ? "selected" : ""}>None</option>
@@ -1375,15 +1394,15 @@ function renderEntries(pid) {
           <div id="holiday-notes-wrap-${e.id}" style="display:none"></div>
         </div>
       </div>
-      <div class="entry-section" style="${isOffsite ? offOpacity : ''}">
+      <div class="entry-section" style="${(isOffsite || isAbsent) ? offOpacity : ''}">
         <h4>Overtime</h4>
         <div class="entry-grid">
-          <label>OT Hrs<input type="number" min="0" value="${e.ot_hours || 0}" ${isOffsite ? "disabled" : ""} onchange="updateEntry('${pid}','${e.id}','ot_hours',this.value)"></label>
-          <label>OT Min<input type="number" min="0" max="59" value="${e.ot_minutes || 0}" ${isOffsite ? "disabled" : ""} onchange="updateEntry('${pid}','${e.id}','ot_minutes',this.value)"></label>
-          <label>OT Rate (₱/hr)<input type="number" min="0" step="0.01" value="${e.ot_rate || otRateFromBase(baseRate)}" ${isOffsite ? "disabled" : ""} onchange="updateEntry('${pid}','${e.id}','ot_rate',this.value)"></label>
+          <label>OT Hrs<input type="number" min="0" value="${e.ot_hours || 0}" ${(isOffsite || isAbsent) ? "disabled" : ""} onchange="updateEntry('${pid}','${e.id}','ot_hours',this.value)"></label>
+          <label>OT Min<input type="number" min="0" max="59" value="${e.ot_minutes || 0}" ${(isOffsite || isAbsent) ? "disabled" : ""} onchange="updateEntry('${pid}','${e.id}','ot_minutes',this.value)"></label>
+          <label>OT Rate (₱/hr)<input type="number" min="0" step="0.01" value="${e.ot_rate || otRateFromBase(baseRate)}" ${(isOffsite || isAbsent) ? "disabled" : ""} onchange="updateEntry('${pid}','${e.id}','ot_rate',this.value)"></label>
         </div>
       </div>
-      <div class="entry-section" style="${isOffsite ? offOpacity : ''}">
+      <div class="entry-section" style="${(isOffsite || isAbsent) ? offOpacity : ''}">
         <h4>Commission</h4>
         <div class="cf-brand-bar">
           <label class="cf-brand-label">Brand
@@ -1416,6 +1435,23 @@ function renderEntries(pid) {
     renderCustomFieldListsUI(pid, e.id);
     renderUnitsListUI(pid, e.id);
   });
+}
+
+// Handle absent toggle — clears incompatible flags and triggers re-render
+async function onAbsentChange(pid, eid, checked) {
+  const p = state.periods.find(x => x.id === pid);
+  const e = p.entries.find(x => x.id === eid);
+  e.is_absent = !!checked;
+  // When marking absent, clear half-day and offset (they are mutually exclusive)
+  const updates = { is_absent: e.is_absent };
+  if (checked) {
+    e.is_halfday = false;
+    e.is_offset = false;
+    updates.is_halfday = false;
+    updates.is_offset = false;
+  }
+  await sb.from('entries').update(updates).eq('id', eid);
+  editPeriod(pid); // full re-render so greying and chip apply
 }
 
 // Handle holiday type change — syncs legacy is_holiday flag too
@@ -1883,13 +1919,6 @@ function saveSettings() {
   GEELY = COMMISSION_RATES.geely || {};
   saveCommissionRates(COMMISSION_RATES);
   clearSettingsDirty();
-  // Re-render all tabs immediately so every part of the UI reflects the
-  // new rates without requiring a manual page refresh.
-  renderAll();
-  // If a pay period detail is currently open, re-render it so that entry
-  // totals and the net pay bar update immediately with the new rates.
-  const openPeriodCard = document.querySelector("#period-detail .period-card[data-period-id]");
-  if (openPeriodCard) editPeriod(openPeriodCard.dataset.periodId);
   toast("Commission rates & defaults saved ✓");
 }
 
@@ -1964,7 +1993,7 @@ function exportCSV(pid) {
   aoa.push(headers.map(h => xHead(h)));
   p.entries.forEach(e => {
     const c = calcEntry(e, emp.base_rate);
-    const type = e.is_offset ? "Offset" : e.is_holiday ? "Holiday" : e.is_halfday ? "Half Day" : "Full";
+    const type = e.is_absent ? "Absent" : e.is_offset ? "Offset" : e.is_holiday ? "Holiday" : e.is_halfday ? "Half Day" : "Full";
     const otH = +e.ot_hours || 0;
     const otM = +e.ot_minutes || 0;
     const totalOTLabel = formatOT(otH, otM);
@@ -2214,7 +2243,7 @@ function exportPDF(pid) {
     body: p.entries.map(e => {
       const c = calcEntry(e, emp.base_rate);
       const holidayType = e.holiday_type || (e.is_holiday ? "onsite" : "none");
-      const type = e.is_offset ? "OFFSET" : holidayType === "offsite" ? "HOL OFF" : holidayType === "onsite" ? "HOL ON" : holidayType === "special" ? "HOL SP" : holidayType === "regular" ? "HOL REG" : e.is_halfday ? "HALF" : "FULL";
+      const type = e.is_absent ? "ABS" : e.is_offset ? "OFFSET" : holidayType === "offsite" ? "HOL OFF" : holidayType === "onsite" ? "HOL ON" : holidayType === "special" ? "HOL SP" : holidayType === "regular" ? "HOL REG" : e.is_halfday ? "HALF" : "FULL";
       const otH = +e.ot_hours || 0;
       const otM = +e.ot_minutes || 0;
       // Show vehicle list summary: total qty across rows, with div notation if any row divides

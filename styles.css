@@ -3086,3 +3086,98 @@ button[onclick^="addEntry"]:hover {
   color: var(--text-dim) !important;
   border: 1.5px dashed var(--border) !important;
 }
+
+/* ══════════════════════════════════════════════════════════════
+   ABSENT — new attendance status
+   ══════════════════════════════════════════════════════════════ */
+
+/* Attendance chip */
+.chip-absent {
+  background: #fef2f2;
+  color: #dc2626;
+  border: 1px solid #fecaca;
+}
+[data-theme="dark"] .chip-absent {
+  background: rgba(220,38,38,.12);
+  color: #f87171;
+  border-color: rgba(220,38,38,.25);
+}
+
+/* Entry card — absent state (red border, muted bg) */
+.entry-absent {
+  position: relative;
+  background: var(--surface-2);
+  border-color: #fecaca !important;
+}
+.entry-absent::after {
+  content: "ABSENT — No pay for this day";
+  position: absolute;
+  top: 10px;
+  right: 14px;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: .8px;
+  text-transform: uppercase;
+  color: #dc2626;
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  border-radius: 20px;
+  padding: 3px 10px;
+  pointer-events: none;
+}
+[data-theme="dark"] .entry-absent {
+  border-color: rgba(220,38,38,.35) !important;
+}
+[data-theme="dark"] .entry-absent::after {
+  color: #f87171;
+  background: rgba(220,38,38,.1);
+  border-color: rgba(220,38,38,.3);
+}
+
+/* Status badge in entry banner */
+.edb-status-absent {
+  background: #fef2f2;
+  color: #dc2626;
+  border: 1px solid #fecaca;
+}
+[data-theme="dark"] .edb-status-absent {
+  background: rgba(220,38,38,.12);
+  color: #f87171;
+  border-color: rgba(220,38,38,.25);
+}
+
+/* Step indicator — absent bubble */
+.dsi-btn.dsi-absent .dsi-circle {
+  background: #fef2f2;
+  border-color: #fca5a5;
+  color: #dc2626;
+}
+.dsi-btn.dsi-absent .dsi-dot  { display: block; background: #dc2626; }
+.dsi-btn.dsi-absent .dsi-label { color: #dc2626; }
+[data-theme="dark"] .dsi-btn.dsi-absent .dsi-circle {
+  background: rgba(220,38,38,.12);
+  border-color: rgba(220,38,38,.4);
+  color: #f87171;
+}
+[data-theme="dark"] .dsi-btn.dsi-absent .dsi-dot  { background: #f87171; }
+[data-theme="dark"] .dsi-btn.dsi-absent .dsi-label { color: #f87171; }
+
+/* Day Type toggle — Absent (red tone) */
+.toggle-check.tone-red.is-checked {
+  background: #fef2f2 !important;
+  border-color: #fecaca !important;
+  color: #b91c1c !important;
+}
+.toggle-check.tone-red.is-checked .toggle-box {
+  background: #dc2626 !important;
+  border-color: #dc2626 !important;
+}
+[data-theme="dark"] .toggle-check.tone-red.is-checked {
+  background: rgba(220,38,38,.1) !important;
+  border-color: rgba(220,38,38,.3) !important;
+  color: #f87171 !important;
+}
+[data-theme="dark"] .toggle-check.tone-red.is-checked .toggle-box {
+  background: #ef4444 !important;
+  border-color: #ef4444 !important;
+}
