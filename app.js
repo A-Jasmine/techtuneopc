@@ -50,14 +50,14 @@ function getPhilippineTime() {
 }
 
 function getTimeOfDay(hour) {
-  if (hour >= 6  && hour < 12) return "morning";
+  if (hour >= 6 && hour < 12) return "morning";
   if (hour >= 12 && hour < 18) return "afternoon";
   if (hour >= 18 && hour < 22) return "evening";
   return "night";
 }
 
-const TIME_EMOJI  = { morning: "🌅", afternoon: "🌤️", evening: "🌙", night: "🌌" };
-const TIME_LABEL  = { morning: "Good morning", afternoon: "Good afternoon", evening: "Good evening", night: "Good evening" };
+const TIME_EMOJI = { morning: "🌅", afternoon: "🌤️", evening: "🌙", night: "🌌" };
+const TIME_LABEL = { morning: "Good morning", afternoon: "Good afternoon", evening: "Good evening", night: "Good evening" };
 
 function getDailyMessage(period) {
   const msgs = GREETING_MESSAGES[period];
@@ -70,37 +70,37 @@ function getDailyMessage(period) {
 let _greetingClockInterval = null;
 
 function updateGreetingBanner() {
-  const now    = getPhilippineTime();
-  const hour   = now.getHours();
-  const min    = now.getMinutes();
-  const sec    = now.getSeconds();
+  const now = getPhilippineTime();
+  const hour = now.getHours();
+  const min = now.getMinutes();
+  const sec = now.getSeconds();
   const period = getTimeOfDay(hour);
 
-  const h12  = hour % 12 || 12;
-  const mm   = String(min).padStart(2, "0");
-  const ss   = String(sec).padStart(2, "0");
+  const h12 = hour % 12 || 12;
+  const mm = String(min).padStart(2, "0");
+  const ss = String(sec).padStart(2, "0");
   const ampm = hour < 12 ? "AM" : "PM";
 
-  const DAYS   = ["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"];
-  const MONTHS = ["January","February","March","April","May","June","July","August","September","October","November","December"];
-  const dayName  = DAYS[now.getDay()];
+  const DAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+  const MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+  const dayName = DAYS[now.getDay()];
   const monthName = MONTHS[now.getMonth()];
-  const dateNum  = now.getDate();
-  const year     = now.getFullYear();
+  const dateNum = now.getDate();
+  const year = now.getFullYear();
 
   const titleEl = document.getElementById("greeting-title");
-  const msgEl   = document.getElementById("greeting-msg");
+  const msgEl = document.getElementById("greeting-msg");
   const emojiEl = document.getElementById("greeting-emoji");
-  const timeEl  = document.getElementById("greeting-time");
-  const ampmEl  = document.getElementById("greeting-ampm");
-  const dateEl  = document.getElementById("greeting-date");
+  const timeEl = document.getElementById("greeting-time");
+  const ampmEl = document.getElementById("greeting-ampm");
+  const dateEl = document.getElementById("greeting-date");
   if (!titleEl) return;
 
   titleEl.textContent = TIME_LABEL[period] + ", Thalia.";
-  msgEl.textContent   = getDailyMessage(period);
+  msgEl.textContent = getDailyMessage(period);
   emojiEl.textContent = TIME_EMOJI[period];
-  timeEl.textContent  = h12 + ":" + mm + ":" + ss;
-  ampmEl.textContent  = ampm;
+  timeEl.textContent = h12 + ":" + mm + ":" + ss;
+  ampmEl.textContent = ampm;
   if (dateEl) dateEl.textContent = dayName + ", " + monthName + " " + dateNum + ", " + year;
 
   const banner = document.getElementById("greeting-banner");
@@ -247,11 +247,11 @@ const VEHICLE_LABELS = { sedan: "Sedan/SUV", mpv: "MPV", sunroof: "Sunroof", scr
 // SVG icon paths for each vehicle type
 const VEHICLE_ICONS = {
   sedan: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 17H3v-5l2.5-4.5A2 2 0 0 1 7.24 6h9.52a2 2 0 0 1 1.74 1.5L21 12v5h-2"/><circle cx="7.5" cy="17.5" r="1.5"/><circle cx="16.5" cy="17.5" r="1.5"/><path d="M5 12h14"/></svg>`,
-  mpv:   `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="7" width="20" height="10" rx="2"/><path d="M6 7V5a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v2"/><circle cx="7" cy="17" r="1"/><circle cx="17" cy="17" r="1"/><path d="M2 12h20"/></svg>`,
+  mpv: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="7" width="20" height="10" rx="2"/><path d="M6 7V5a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v2"/><circle cx="7" cy="17" r="1"/><circle cx="17" cy="17" r="1"/><path d="M2 12h20"/></svg>`,
   sunroof: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/></svg>`,
-  scrap:  `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>`,
-  tubes:  `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="2" x2="12" y2="22"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>`,
-  units:  `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>`,
+  scrap: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>`,
+  tubes: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="2" x2="12" y2="22"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>`,
+  units: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>`,
   custom: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>`
 };
 
@@ -260,7 +260,7 @@ function parseVehicleLists(e) {
   if (e.vehicle_lists && typeof e.vehicle_lists === "object" && !Array.isArray(e.vehicle_lists)) {
     parsed = e.vehicle_lists;
   } else if (typeof e.vehicle_lists === "string" && e.vehicle_lists) {
-    try { parsed = JSON.parse(e.vehicle_lists); } catch (ex) {}
+    try { parsed = JSON.parse(e.vehicle_lists); } catch (ex) { }
   }
   if (!parsed) parsed = {};
   // For each type, ensure it's an array; seed from legacy scalar fields if empty,
@@ -1064,7 +1064,7 @@ function renderVehicleListUI(pid, eid, type) {
 
   const rowsHTML = rows.map((row, i) => {
     const canRemove = !(i === 0 && rows.length === 1);
-    const divOpts = Array.from({length:10},(_,k)=>k+1).map(n=>`<option value="${n}" ${(+row.div||1)===n?"selected":""}>${String.fromCharCode(247)}${n}</option>`).join("");
+    const divOpts = Array.from({ length: 10 }, (_, k) => k + 1).map(n => `<option value="${n}" ${(+row.div || 1) === n ? "selected" : ""}>${String.fromCharCode(247)}${n}</option>`).join("");
     return `
     <div class="cf-row${i > 0 ? " cf-row-extra" : ""}">
       <div class="cf-stepper">
@@ -1147,7 +1147,7 @@ function renderCustomFieldListsUI(pid, eid) {
     wrap.setAttribute("data-active", totalQty > 0 ? "1" : "0");
     const rowsHTML = rows.map((row, i) => {
       const canRemove = !(i === 0 && rows.length === 1);
-      const divOpts = Array.from({length:10},(_,k)=>k+1).map(n=>`<option value="${n}" ${(+row.div||1)===n?"selected":""}>${String.fromCharCode(247)}${n}</option>`).join("");
+      const divOpts = Array.from({ length: 10 }, (_, k) => k + 1).map(n => `<option value="${n}" ${(+row.div || 1) === n ? "selected" : ""}>${String.fromCharCode(247)}${n}</option>`).join("");
       return `
       <div class="cf-row${i > 0 ? " cf-row-extra" : ""}">
         <div class="cf-stepper">
@@ -1155,7 +1155,7 @@ function renderCustomFieldListsUI(pid, eid) {
             onclick="cfStepCustom('${pid}','${eid}','${cf.key}',${i},-1,this)">
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8"><line x1="5" y1="12" x2="19" y2="12"/></svg>
           </button>
-          <input class="cf-qty-input" type="number" min="0" value="${row.qty||0}" placeholder="0" ${dis}
+          <input class="cf-qty-input" type="number" min="0" value="${row.qty || 0}" placeholder="0" ${dis}
             onchange="updateCustomFieldRow('${pid}','${eid}','${cf.key}',${i},'qty',this.value);refreshCfCustomState('${eid}','${cf.key}')">
           <button type="button" class="cf-step-btn cf-step-plus" ${dis}
             onclick="cfStepCustom('${pid}','${eid}','${cf.key}',${i},1,this)">
@@ -1302,8 +1302,8 @@ function renderUnitsListUI(pid, eid) {
     <div class="cf-divider-line"></div>
     <div class="cf-rows-wrap">
     ${displayList.map((u, i) => {
-      const canRemove = !(i === 0 && displayList.length === 1);
-      return `
+    const canRemove = !(i === 0 && displayList.length === 1);
+    return `
       <div class="cf-row${i > 0 ? " cf-row-extra" : ""}">
         <div class="cf-stepper">
           <button type="button" class="cf-step-btn cf-step-minus" ${disAttr}
@@ -1321,7 +1321,7 @@ function renderUnitsListUI(pid, eid) {
           <span class="cf-divider-label">÷ workers</span>
           <select class="cf-divider-select" ${disAttr}
             onchange="updateUnitsRow('${pid}','${eid}',${i},'div',this.value)">
-            ${Array.from({length:10},(_,k)=>k+1).map(n=>`<option value="${n}" ${(+u.div||1)===n?"selected":""}>${String.fromCharCode(247)}${n}</option>`).join("")}
+            ${Array.from({ length: 10 }, (_, k) => k + 1).map(n => `<option value="${n}" ${(+u.div || 1) === n ? "selected" : ""}>${String.fromCharCode(247)}${n}</option>`).join("")}
           </select>
         </div>
         ${canRemove ? `<button type="button" class="cf-remove-btn" ${disAttr}
@@ -1329,7 +1329,7 @@ function renderUnitsListUI(pid, eid) {
             <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
           </button>` : ""}
       </div>`;
-    }).join("")}
+  }).join("")}
     </div>`;
   lucide.createIcons();
 }
@@ -1425,10 +1425,10 @@ function renderEntries(pid) {
           <button class="dsi-btn ${stateClass}" onclick="document.getElementById('entry-${e.id}').scrollIntoView({behavior:'smooth',block:'center'})" title="Go to Day ${dayNum}">
             <div class="dsi-circle" data-day="${dayNum}">
               ${isAbsent2
-                ? `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>`
-                : isComplete
-                  ? `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg>`
-                  : dayNum}
+          ? `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>`
+          : isComplete
+            ? `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg>`
+            : dayNum}
               <div class="dsi-dot"></div>
             </div>
             <span class="dsi-label">${dateShort}</span>
@@ -1445,16 +1445,16 @@ function renderEntries(pid) {
     const isOffsite = holidayType === "offsite";
     const baseLabel = e.is_absent ? `Absent · ₱0 (no pay)`
       : e.is_offset ? `Offset day`
-      : holidayType === "offsite" ? `Holiday Offsite · ₱0 base (holiday bonus only)`
-        : holidayType === "onsite" ? (e.is_halfday ? `Holiday Onsite · Half day · ₱${(baseRate / 2).toLocaleString()}` : `Holiday Onsite · ₱${baseRate.toLocaleString()}`)
-          : holidayType === "special" ? (e.is_halfday ? `Special Holiday · Half day · ₱${(baseRate / 2).toLocaleString()} + ${Math.round(baseRate * 0.3)}` : `Special Holiday · ₱${baseRate.toLocaleString()} + ₱${Math.round(baseRate * 0.3)} bonus`)
-            : holidayType === "regular" ? (e.is_halfday ? `Regular Holiday · Half day · ₱${(baseRate / 2).toLocaleString()} + ₱${(baseRate / 2).toLocaleString()} bonus` : `Regular Holiday · ₱${baseRate.toLocaleString()} + ₱${baseRate.toLocaleString()} bonus (2× pay)`)
-              : e.is_halfday ? `Half day · ₱${(baseRate / 2).toLocaleString()}` : `Full day · ₱${baseRate.toLocaleString()}`;
+        : holidayType === "offsite" ? `Holiday Offsite · ₱0 base (holiday bonus only)`
+          : holidayType === "onsite" ? (e.is_halfday ? `Holiday Onsite · Half day · ₱${(baseRate / 2).toLocaleString()}` : `Holiday Onsite · ₱${baseRate.toLocaleString()}`)
+            : holidayType === "special" ? (e.is_halfday ? `Special Holiday · Half day · ₱${(baseRate / 2).toLocaleString()} + ${Math.round(baseRate * 0.3)}` : `Special Holiday · ₱${baseRate.toLocaleString()} + ₱${Math.round(baseRate * 0.3)} bonus`)
+              : holidayType === "regular" ? (e.is_halfday ? `Regular Holiday · Half day · ₱${(baseRate / 2).toLocaleString()} + ₱${(baseRate / 2).toLocaleString()} bonus` : `Regular Holiday · ₱${baseRate.toLocaleString()} + ₱${baseRate.toLocaleString()} bonus (2× pay)`)
+                : e.is_halfday ? `Half day · ₱${(baseRate / 2).toLocaleString()}` : `Full day · ₱${baseRate.toLocaleString()}`;
 
     // Per-field divide helpers (÷1 – ÷10)
     const divSel = (field, val) => {
       const cur = val || 1;
-      const opts = Array.from({length:10},(_,i)=>i+1).map(n=>`<option value="${n}" ${cur===n?"selected":""}>${String.fromCharCode(247)}${n}</option>`).join("");
+      const opts = Array.from({ length: 10 }, (_, i) => i + 1).map(n => `<option value="${n}" ${cur === n ? "selected" : ""}>${String.fromCharCode(247)}${n}</option>`).join("");
       return `<select style="width:80px;font-size:12px" onchange="updateEntry('${pid}','${e.id}','${field}',this.value)" title="Divide by (# of workers)">${opts}</select>`;
     };
 
@@ -1495,9 +1495,9 @@ function renderEntries(pid) {
       </div>
       <div class="entry-grid">
         <label>Date<input type="date" value="${e.date}" onchange="updateEntry('${pid}','${e.id}','date',this.value)"></label>
-        <label>Location${isAbsent ? '<input type="text" value="-" disabled>' : `<select onchange="updateEntry('${pid}','${e.id}','location',this.value)">${LOCATIONS.map(l => `<option ${l === e.location ? "selected" : ""}>${l}</option>`).join("")}</select>`}</label>
-        <label style="${(isOffsite || isAbsent) ? offOpacity : ''}">Time In${isAbsent ? '<input type="text" value="-" disabled>' : `<input type="time" value="${e.time_in || ''}" ${isOffsite ? "disabled" : ""} onchange="updateEntry('${pid}','${e.id}','time_in',this.value)">`}</label>
-        <label style="${(isOffsite || isAbsent) ? offOpacity : ''}">Time Out${isAbsent ? '<input type="text" value="-" disabled>' : `<input type="time" value="${e.time_out || ''}" ${isOffsite ? "disabled" : ""} onchange="updateEntry('${pid}','${e.id}','time_out',this.value)">`}</label>
+        <label>Location${isAbsent ? '<input type="text" value="—" disabled>' : `<select onchange="updateEntry('${pid}','${e.id}','location',this.value)">${LOCATIONS.map(l => `<option ${l === e.location ? "selected" : ""}>${l}</option>`).join("")}</select>`}</label>
+        <label style="${(isOffsite || isAbsent) ? offOpacity : ''}">Time In${isAbsent ? '<input type="text" value="—" disabled>' : `<input type="time" value="${e.time_in || ''}" ${isOffsite ? "disabled" : ""} onchange="updateEntry('${pid}','${e.id}','time_in',this.value)">`}</label>
+        <label style="${(isOffsite || isAbsent) ? offOpacity : ''}">Time Out${isAbsent ? '<input type="text" value="—" disabled>' : `<input type="time" value="${e.time_out || ''}" ${isOffsite ? "disabled" : ""} onchange="updateEntry('${pid}','${e.id}','time_out',this.value)">`}</label>
       </div>
       <div class="base-info-row">
         <span class="base-info-label"><i data-lucide="wallet"></i> ${baseLabel}</span>
@@ -1547,7 +1547,7 @@ function renderEntries(pid) {
             <div class="holiday-detail-row">
               <div class="holiday-detail-field">
                 <span class="holiday-detail-label">Holiday Notes <span style="font-weight:400;font-style:italic">(optional)</span></span>
-                <input type="text" placeholder="e.g. New Year's Day" value="${(e.holiday_notes || '').replace(/"/g,'&quot;')}"
+                <input type="text" placeholder="e.g. New Year's Day" value="${(e.holiday_notes || '').replace(/"/g, '&quot;')}"
                   onchange="updateEntry('${pid}','${e.id}','holiday_notes',this.value)">
               </div>
               <div class="holiday-detail-field holiday-pay-chip">
@@ -1575,8 +1575,8 @@ function renderEntries(pid) {
         <div class="cf-brand-bar">
           <label class="cf-brand-label">Brand
             ${isAbsent
-              ? `<input type="text" value="-" disabled style="opacity:.5">`
-              : `<select onchange="updateEntry('${pid}','${e.id}','brand',this.value);renderEntries('${pid}')" ${isOffsite ? "disabled" : ""}>
+        ? `<input type="text" value="—" disabled style="opacity:.5">`
+        : `<select onchange="updateEntry('${pid}','${e.id}','brand',this.value);renderEntries('${pid}')" ${isOffsite ? "disabled" : ""}>
               ${brandOptions}
             </select>`}
           </label>
@@ -2174,8 +2174,8 @@ function exportCSV(pid) {
     const otM = +e.ot_minutes || 0;
     const totalOTLabel = formatOT(otH, otM);
     aoa.push([
-      xText(e.date), xText(e.is_absent ? "-" : (e.location || "—")), xText(e.is_absent ? "-" : (to12h(e.time_in) || "—")), xText(e.is_absent ? "-" : (to12h(e.time_out) || "—")), xText(type),
-      xNum(c.base), xText(String(otH)), xText(String(otM)), xText(totalOTLabel), xText(e.is_absent ? "-" : (e.brand || "").toUpperCase()),
+      xText(e.date), xText(e.is_absent ? "—" : (e.location || "—")), xText(e.is_absent ? "—" : (to12h(e.time_in) || "—")), xText(e.is_absent ? "—" : (to12h(e.time_out) || "—")), xText(type),
+      xNum(c.base), xText(String(otH)), xText(String(otM)), xText(totalOTLabel), xText(e.is_absent ? "—" : (e.brand || "").toUpperCase()),
       xText(String(e.sedan_qty || 0)), xText(String(e.mpv_qty || 0)), xText(String(e.sunroof_qty || 0)), xText(String(e.scrapping_qty || 0)), xText(String(e.tubes_qty || 0)), xText(String(e.divide_by || 1)),
       xNum(c.commission), xNum(c.otPay), xNum(c.holiday), xText(e.holiday_notes || ""), xNum(c.gas), xNum(c.total), xText(e.notes || "")
     ]);
@@ -2432,9 +2432,9 @@ function exportPDF(pid) {
           const d = +rows[0].div || 1;
           return d > 1 ? `${totalQty}÷${d}` : `${totalQty}`;
         }
-        return rows.filter(r => +r.qty > 0).map(r => { const d = +r.div||1; return d>1?`${r.qty}÷${d}`:String(r.qty); }).join("+") || "—";
+        return rows.filter(r => +r.qty > 0).map(r => { const d = +r.div || 1; return d > 1 ? `${r.qty}÷${d}` : String(r.qty); }).join("+") || "—";
       };
-      return [e.date, e.is_absent ? "-" : (e.location || "—"), e.is_absent ? "-" : (to12h(e.time_in) || "—"), e.is_absent ? "-" : (to12h(e.time_out) || "—"), type, e.is_absent ? "-" : (e.brand || "").toUpperCase(),
+      return [e.date, e.is_absent ? "—" : (e.location || "—"), e.is_absent ? "—" : (to12h(e.time_in) || "—"), e.is_absent ? "—" : (to12h(e.time_out) || "—"), type, e.is_absent ? "—" : (e.brand || "").toUpperCase(),
       vSummary(vl.sedan), vSummary(vl.mpv), vSummary(vl.sunroof),
       vSummary(vl.scrap), vSummary(vl.tubes),
       otH || "—", otM || "—",
