@@ -12,9 +12,23 @@ const DEFAULT_BRAND_NAMES = ["Leilei", "Aion", "GAC", "MG", "Chery", "Omoda & Ja
 // Commission rates — loaded from localStorage so Settings tab can override them
 // Structure: { brandKey: { sedan, mpv, sunroof, scrap, units_rate, sedan_qty, ... }, ... }
 // Also stores brand metadata: { __brands: [{ key, label }] }
-function loadCommissionRates() {
+//
+// ACCOUNT ISOLATION: the localStorage key is namespaced by authenticated user ID
+// so each account has its own independent settings. The key is set once the user
+// session is resolved in initUserSettings(uid) called from loadAll().
+
+// Returns the per-user localStorage key for commission rates.
+function commissionRatesKey(uid) {
+  return uid ? `commissionRates:${uid}` : "commissionRates:anonymous";
+}
+
+// Active user ID — populated by initUserSettings() after auth resolves.
+let _settingsUserId = null;
+
+function loadCommissionRates(uid) {
+  const key = commissionRatesKey(uid);
   try {
-    const saved = localStorage.getItem("commissionRates");
+    const saved = localStorage.getItem(key);
     if (saved) {
       const p = JSON.parse(saved);
       const brands = p.__brands || [{ key: "byd", label: "BYD" }, { key: "geely", label: "Geely" }, { key: "other", label: "Other" }];
@@ -40,6 +54,31 @@ function loadCommissionRates() {
   };
 }
 
+// Called once after auth resolves. Migrates any legacy un-namespaced data for
+// this user on first login, then reloads COMMISSION_RATES from the correct key.
+function initUserSettings(uid) {
+  _settingsUserId = uid;
+  const userKey = commissionRatesKey(uid);
+
+  // One-time migration: if there's data under the old bare key and nothing yet
+  // under the user-scoped key, copy it over so the current logged-in user keeps
+  // their previously saved settings.
+  try {
+    const legacyRaw = localStorage.getItem("commissionRates");
+    const userRaw = localStorage.getItem(userKey);
+    if (legacyRaw && !userRaw) {
+      localStorage.setItem(userKey, legacyRaw);
+      // Remove the legacy bare key so it no longer bleeds into other accounts.
+      localStorage.removeItem("commissionRates");
+    }
+  } catch (e) { }
+
+  // Re-hydrate the in-memory rates from this user's scoped key.
+  COMMISSION_RATES = loadCommissionRates(uid);
+  BYD = COMMISSION_RATES.byd || {};
+  GEELY = COMMISSION_RATES.geely || {};
+}
+
 // Returns the custom_fields array for a brand: [{key, label, rate}]
 function getCustomFields(brandKey) {
   const r = COMMISSION_RATES[brandKey];
@@ -49,9 +88,11 @@ function customFieldKey(label) {
   return "cf_" + label.toLowerCase().replace(/[^a-z0-9]/g, "_").replace(/_+/g, "_").replace(/^_|_$/g, "");
 }
 function saveCommissionRates(rates) {
-  localStorage.setItem("commissionRates", JSON.stringify(rates));
+  // Always save under the authenticated user's scoped key.
+  localStorage.setItem(commissionRatesKey(_settingsUserId), JSON.stringify(rates));
 }
-let COMMISSION_RATES = loadCommissionRates();
+// Bootstrap with anonymous key at module load; replaced by initUserSettings() after auth.
+let COMMISSION_RATES = loadCommissionRates(null);
 // Keep legacy aliases in sync so existing calcEntry still works
 let BYD = COMMISSION_RATES.byd;
 let GEELY = COMMISSION_RATES.geely;
@@ -225,6 +266,10 @@ function formatOT(h, m) { h = +h || 0; m = +m || 0; if (!h && !m) return "0"; if
 async function loadAll() {
   const { data: { user } } = await sb.auth.getUser();
   const uid = user.id;
+
+  // Scope commission rate settings to this authenticated user before any render.
+  initUserSettings(uid);
+
   const [emps, pers, ents, deds] = await Promise.all([
     sb.from('employees').select('*').eq('user_id', uid).order('created_at'),
     sb.from('pay_periods').select('*').eq('user_id', uid).order('created_at'),
