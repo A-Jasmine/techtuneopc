@@ -81,11 +81,19 @@ function updateGreetingBanner() {
   const ss   = String(sec).padStart(2, "0");
   const ampm = hour < 12 ? "AM" : "PM";
 
+  const DAYS   = ["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"];
+  const MONTHS = ["January","February","March","April","May","June","July","August","September","October","November","December"];
+  const dayName  = DAYS[now.getDay()];
+  const monthName = MONTHS[now.getMonth()];
+  const dateNum  = now.getDate();
+  const year     = now.getFullYear();
+
   const titleEl = document.getElementById("greeting-title");
   const msgEl   = document.getElementById("greeting-msg");
   const emojiEl = document.getElementById("greeting-emoji");
   const timeEl  = document.getElementById("greeting-time");
   const ampmEl  = document.getElementById("greeting-ampm");
+  const dateEl  = document.getElementById("greeting-date");
   if (!titleEl) return;
 
   titleEl.textContent = TIME_LABEL[period] + ", Thalia.";
@@ -93,6 +101,7 @@ function updateGreetingBanner() {
   emojiEl.textContent = TIME_EMOJI[period];
   timeEl.textContent  = h12 + ":" + mm + ":" + ss;
   ampmEl.textContent  = ampm;
+  if (dateEl) dateEl.textContent = dayName + ", " + monthName + " " + dateNum + ", " + year;
 
   const banner = document.getElementById("greeting-banner");
   if (banner) banner.className = "greeting-banner greeting-banner--" + period;
