@@ -512,7 +512,7 @@ function renderPayroll() {
     const t = calcPeriod(p);
     return `<div class="list-item">
       <div class="period-dot"></div>
-      <div class="info"><strong>${p.start_date} → ${p.end_date}</strong><small>${p.entries.length} day${p.entries.length !== 1 ? 's' : ''} worked • Net: <span class="net-highlight">${peso(t.net)}</span></small></div>
+      <div class="info"><strong>${p.start_date} → ${p.end_date}</strong><small>${p.entries.filter(e => !e.is_absent).length} day${p.entries.filter(e => !e.is_absent).length !== 1 ? 's' : ''} worked • Net: <span class="net-highlight">${peso(t.net)}</span></small></div>
       <div class="row">
         <button class="btn accent" onclick="editPeriod('${p.id}')"><i data-lucide="edit"></i> Edit</button>
         <button class="btn danger" onclick="deletePeriod('${p.id}')"><i data-lucide="trash-2"></i></button>
@@ -1617,7 +1617,7 @@ function renderEarningsHistory() {
         <td style="text-align:right">${peso(t.ot)}</td>
         <td style="text-align:right">${peso(t.deductions)}</td>
         <td style="text-align:right;font-weight:700;color:var(--green)">${peso(t.net)}</td>
-        <td style="text-align:center">${p.entries.length}</td>
+        <td style="text-align:center">${p.entries.filter(e => !e.is_absent).length}</td>
       </tr>`;
     }).join("");
   }
@@ -1962,7 +1962,12 @@ function exportCSV(pid) {
   aoa.push([xSection("EMPLOYEE INFORMATION")]); pushMerge(merges, 4, 0, 4, 19);
   aoa.push([xLabel("Employee"), xText(emp.name), xLabel("Pay Period"), xText(`${p.start_date} to ${p.end_date}`)]);
   aoa.push([xLabel("Position"), xText(emp.position), xLabel("Pay Date"), xText(p.pay_date)]);
-  aoa.push([xLabel("Base Rate"), xText(`PHP ${(+emp.base_rate || 1000).toLocaleString()}/day`), xLabel("Days Worked"), xText(String(p.entries.length))]);
+  const csvDaysWorked = p.entries.filter(e => !e.is_absent).length;
+  const csvDaysAbsent = p.entries.filter(e => e.is_absent).length;
+  aoa.push([xLabel("Base Rate"), xText(`PHP ${(+emp.base_rate || 1000).toLocaleString()}/day`), xLabel("Days Worked"), xText(String(csvDaysWorked))]);
+  if (csvDaysAbsent > 0) {
+    aoa.push([xText(""), xText(""), xLabel("Days Absent"), xText(String(csvDaysAbsent))]);
+  }
   aoa.push([xText("")]);
 
   const earnRow = aoa.length;
@@ -2006,8 +2011,8 @@ function exportCSV(pid) {
   });
 
   // Totals row
-  const totalOTHrs = p.entries.reduce((s, e) => s + (+e.ot_hours || 0), 0);
-  const totalOTMins = p.entries.reduce((s, e) => s + (+e.ot_minutes || 0), 0);
+  const totalOTHrs = p.entries.filter(e => !e.is_absent).reduce((s, e) => s + (+e.ot_hours || 0), 0);
+  const totalOTMins = p.entries.filter(e => !e.is_absent).reduce((s, e) => s + (+e.ot_minutes || 0), 0);
   const normOTH = totalOTHrs + Math.floor(totalOTMins / 60);
   const normOTM = totalOTMins % 60;
   aoa.push([
@@ -2051,7 +2056,7 @@ function buildSummaryXLSX(titleLabel, rangeLabel, filteredPeriods) {
       const t = calcPeriod(p);
       aoa.push([
         xText(emp.name), xText(emp.position), xText(p.start_date), xText(p.end_date), xText(p.pay_date),
-        xText(String(p.entries.length)),
+        xText(String(p.entries.filter(e => !e.is_absent).length)),
         xNum(t.basic), xNum(t.ot), xNum(t.commission), xNum(t.holiday), xNum(t.gas), xNum(t.earnings), xNum(t.deductions), xNum(t.net)
       ]);
       sub += t.net;
@@ -2180,7 +2185,7 @@ function exportPDF(pid) {
       [{ content: "Position", styles: { fontStyle: "bold", fillColor: [240, 240, 240] } }, emp.position,
       { content: "Pay Date", styles: { fontStyle: "bold", fillColor: [240, 240, 240] } }, p.pay_date],
       [{ content: "Base Rate", styles: { fontStyle: "bold", fillColor: [240, 240, 240] } }, `PHP ${(+emp.base_rate || 1000).toLocaleString()}/day`,
-      { content: "Days Worked", styles: { fontStyle: "bold", fillColor: [240, 240, 240] } }, String(p.entries.length)],
+      { content: "Days Worked", styles: { fontStyle: "bold", fillColor: [240, 240, 240] } }, String(p.entries.filter(e => !e.is_absent).length)],
     ],
     columnStyles: { 0: { cellWidth: 90 }, 1: { cellWidth: 260 }, 2: { cellWidth: 90 }, 3: { cellWidth: "auto" } }
   });
@@ -2297,15 +2302,22 @@ function exportPDF(pid) {
   });
 
   // OT & hours totals summary below the table
-  const pdfTotalOTH = p.entries.reduce((s, e) => s + (+e.ot_hours || 0), 0);
-  const pdfTotalOTM = p.entries.reduce((s, e) => s + (+e.ot_minutes || 0), 0);
+  const pdfTotalOTH = p.entries.filter(e => !e.is_absent).reduce((s, e) => s + (+e.ot_hours || 0), 0);
+  const pdfTotalOTM = p.entries.filter(e => !e.is_absent).reduce((s, e) => s + (+e.ot_minutes || 0), 0);
   const pdfNormH = pdfTotalOTH + Math.floor(pdfTotalOTM / 60);
   const pdfNormM = pdfTotalOTM % 60;
   const summY = doc.lastAutoTable.finalY + 10;
+  const pdfDaysWorked = p.entries.filter(e => !e.is_absent).length;
+  const pdfDaysAbsent = p.entries.filter(e => e.is_absent).length;
   doc.setFillColor(242, 246, 255); doc.roundedRect(margin, summY, pageW - margin * 2, 24, 4, 4, "F");
   doc.setFont("helvetica", "bold"); doc.setFontSize(9); doc.setTextColor(30);
-  doc.text(`Total Days Worked: ${p.entries.length}`, margin + 14, summY + 15);
-  doc.text(`Total OT: ${formatOT(pdfNormH, pdfNormM) || "0"}  (${pdfNormH}h ${pdfNormM}m)`, margin + 160, summY + 15);
+  doc.text(`Total Days Worked: ${pdfDaysWorked}`, margin + 14, summY + 15);
+  if (pdfDaysAbsent > 0) {
+    doc.text(`Total Days Absent: ${pdfDaysAbsent}`, margin + 160, summY + 15);
+    doc.text(`Total OT: ${formatOT(pdfNormH, pdfNormM) || "0"}  (${pdfNormH}h ${pdfNormM}m)`, margin + 310, summY + 15);
+  } else {
+    doc.text(`Total OT: ${formatOT(pdfNormH, pdfNormM) || "0"}  (${pdfNormH}h ${pdfNormM}m)`, margin + 160, summY + 15);
+  }
   doc.setTextColor(0);
 
   doc.save(`${emp.name.replace(/\s+/g, "_")}_${p.start_date}_to_${p.end_date}_payslip_exported_${exportTimestamp()}.pdf`);
