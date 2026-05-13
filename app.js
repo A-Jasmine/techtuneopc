@@ -9,23 +9,25 @@ const fmt = n => (n || 0).toLocaleString("en-PH", { minimumFractionDigits: 2, ma
 // Default brands list for the dropdown in Settings
 const DEFAULT_BRAND_NAMES = ["Leilei", "Aion", "GAC", "MG", "Chery", "Omoda & Jaecoo"];
 
-// Commission rates — loaded from Supabase (authoritative) with localStorage as a fast-start cache.
-// Structure: { __brands: [{key, label}], brandKey: { sedan, mpv, sunroof, scrap, units_rate, ... } }
-const SETTINGS_KEY = "commission_rates";
-
-function _normaliseRates(p) {
-  const brands = p.__brands || [{ key: "byd", label: "BYD" }, { key: "geely", label: "Geely" }, { key: "other", label: "Other" }];
-  brands.forEach(b => {
-    if (!p[b.key]) p[b.key] = { sedan: 0, mpv: 0, sunroof: 0, scrap: 0, units_rate: 0, custom_fields: [] };
-    if (p[b.key].scrap === undefined) p[b.key].scrap = 0;
-    if (p[b.key].units_rate === undefined) p[b.key].units_rate = 0;
-    if (!Array.isArray(p[b.key].custom_fields)) p[b.key].custom_fields = [];
-  });
-  p.__brands = brands;
-  return p;
-}
-
-function _defaultRates() {
+// Commission rates — loaded from localStorage so Settings tab can override them
+// Structure: { brandKey: { sedan, mpv, sunroof, scrap, units_rate, sedan_qty, ... }, ... }
+// Also stores brand metadata: { __brands: [{ key, label }] }
+function loadCommissionRates() {
+  try {
+    const saved = localStorage.getItem("commissionRates");
+    if (saved) {
+      const p = JSON.parse(saved);
+      const brands = p.__brands || [{ key: "byd", label: "BYD" }, { key: "geely", label: "Geely" }, { key: "other", label: "Other" }];
+      brands.forEach(b => {
+        if (!p[b.key]) p[b.key] = { sedan: 0, mpv: 0, sunroof: 0, scrap: 0, units_rate: 0, custom_fields: [] };
+        if (p[b.key].scrap === undefined) p[b.key].scrap = 0;
+        if (p[b.key].units_rate === undefined) p[b.key].units_rate = 0;
+        if (!Array.isArray(p[b.key].custom_fields)) p[b.key].custom_fields = [];
+      });
+      p.__brands = brands;
+      return p;
+    }
+  } catch (e) { }
   return {
     __brands: [
       { key: "byd", label: "BYD" },
@@ -38,58 +40,6 @@ function _defaultRates() {
   };
 }
 
-function loadCommissionRates() {
-  // Reads from localStorage cache so the app can boot immediately (sync).
-  // loadSettingsFromSupabase() is called during boot and will overwrite this
-  // with the server-authoritative copy, ensuring cross-device consistency.
-  try {
-    const saved = localStorage.getItem("commissionRates");
-    if (saved) return _normaliseRates(JSON.parse(saved));
-  } catch (e) { }
-  return _defaultRates();
-}
-
-// Persist to localStorage immediately AND sync to Supabase for cross-device consistency.
-function saveCommissionRates(rates) {
-  localStorage.setItem("commissionRates", JSON.stringify(rates));
-  // Async Supabase upsert — non-blocking, errors logged but not thrown.
-  (async () => {
-    try {
-      const { data: { user } } = await sb.auth.getUser();
-      if (!user) return;
-      await sb.from("user_settings").upsert(
-        { user_id: user.id, key: SETTINGS_KEY, value: rates },
-        { onConflict: "user_id,key" }
-      );
-    } catch (e) {
-      console.warn("Settings sync to Supabase failed:", e);
-    }
-  })();
-}
-
-// Pull authoritative settings from Supabase and overwrite the in-memory + local cache.
-async function loadSettingsFromSupabase() {
-  try {
-    const { data: { user } } = await sb.auth.getUser();
-    if (!user) return;
-    const { data, error } = await sb.from("user_settings")
-      .select("value")
-      .eq("user_id", user.id)
-      .eq("key", SETTINGS_KEY)
-      .maybeSingle();
-    if (error) { console.warn("Could not fetch settings from Supabase:", error.message); return; }
-    if (data && data.value) {
-      const normalised = _normaliseRates(data.value);
-      COMMISSION_RATES = normalised;
-      BYD = COMMISSION_RATES.byd || {};
-      GEELY = COMMISSION_RATES.geely || {};
-      localStorage.setItem("commissionRates", JSON.stringify(normalised));
-    }
-  } catch (e) {
-    console.warn("loadSettingsFromSupabase error:", e);
-  }
-}
-
 // Returns the custom_fields array for a brand: [{key, label, rate}]
 function getCustomFields(brandKey) {
   const r = COMMISSION_RATES[brandKey];
@@ -98,6 +48,9 @@ function getCustomFields(brandKey) {
 function customFieldKey(label) {
   return "cf_" + label.toLowerCase().replace(/[^a-z0-9]/g, "_").replace(/_+/g, "_").replace(/^_|_$/g, "");
 }
+function saveCommissionRates(rates) {
+  localStorage.setItem("commissionRates", JSON.stringify(rates));
+}
 let COMMISSION_RATES = loadCommissionRates();
 // Keep legacy aliases in sync so existing calcEntry still works
 let BYD = COMMISSION_RATES.byd;
@@ -105,7 +58,7 @@ let GEELY = COMMISSION_RATES.geely;
 const TUBE_RATE = 50, HOLIDAY_AMT = 1000, OFFSET_AMT = 1000;
 const SPECIAL_HOLIDAY_PCT = 0.30; // 30% of base rate
 // Regular holiday: employee works, gets base pay + 100% of base rate as bonus (total = 2× base)
-const BASE_RATE_OPTIONS = [800, 1000, 1100, 1200];
+const BASE_RATE_OPTIONS = [1000, 1100, 1200];
 const LOCATIONS = [
   "Fairview", "Commonwealth", "Batangas City", "Subic", "BGC",
   "Calamba Laguna", "Sucat", "Pasong Tamo", "NYK Cabuyao Laguna",
@@ -266,8 +219,6 @@ function formatOT(h, m) { h = +h || 0; m = +m || 0; if (!h && !m) return "0"; if
 async function loadAll() {
   const { data: { user } } = await sb.auth.getUser();
   const uid = user.id;
-  // Fetch settings from Supabase in parallel with other data so all devices
-  // always get the server-authoritative commission rates (fixes cross-device sync).
   const [emps, pers, ents, deds] = await Promise.all([
     sb.from('employees').select('*').eq('user_id', uid).order('created_at'),
     sb.from('pay_periods').select('*').eq('user_id', uid).order('created_at'),
@@ -281,9 +232,6 @@ async function loadAll() {
     entries: (ents.data || []).filter(e => e.pay_period_id === p.id),
     deductions: (deds.data || []).filter(d => d.pay_period_id === p.id),
   }));
-  // Pull settings last (after employees/periods are cached) so any re-renders
-  // triggered by settings changes have fresh employee data available.
-  await loadSettingsFromSupabase();
 }
 
 // =============== THEME ===============
@@ -345,7 +293,9 @@ document.querySelectorAll(".tab").forEach(t => {
     const fnp = document.getElementById("floating-net-pay");
     if (fnp && fnp._ioCleanup) fnp._ioCleanup();
     if (t.dataset.tab === "dashboard") renderDashboard();
-    if (t.dataset.tab === "settings") renderSettings();
+    if (t.dataset.tab === "payroll")   renderPayroll();
+    if (t.dataset.tab === "employees") renderEmployees();
+    if (t.dataset.tab === "settings")  renderSettings();
   };
 });
 
@@ -466,13 +416,8 @@ function renderEmployees() {
 function refreshEmpDropdown() {
   const sel = document.getElementById("pp-emp");
   const prev = sel.value;
-  const sorted = state.employees.slice().sort((a, b) => {
-    const fa = (a.name || "").split(" ")[0].toLowerCase();
-    const fb = (b.name || "").split(" ")[0].toLowerCase();
-    return fa.localeCompare(fb);
-  });
-  sel.innerHTML = sorted.length
-    ? '<option value="">— Select employee —</option>' + sorted.map(e => `<option value="${e.id}">${e.name}</option>`).join("")
+  sel.innerHTML = state.employees.length
+    ? '<option value="">— Select employee —</option>' + state.employees.map(e => `<option value="${e.id}">${e.name}</option>`).join("")
     : '<option value="">No employees</option>';
   if (prev && state.employees.find(e => e.id === prev)) sel.value = prev;
 }
@@ -608,7 +553,7 @@ function editPeriod(id) {
 
   const div = document.getElementById("period-detail");
   div.innerHTML = `
-    <div class="period-card">
+    <div class="period-card" data-period-id="${p.id}">
       <div class="card-head">
         <div>
           <h2><i data-lucide="calendar"></i> ${emp.name} — Pay Period</h2>
@@ -1938,6 +1883,13 @@ function saveSettings() {
   GEELY = COMMISSION_RATES.geely || {};
   saveCommissionRates(COMMISSION_RATES);
   clearSettingsDirty();
+  // Re-render all tabs immediately so every part of the UI reflects the
+  // new rates without requiring a manual page refresh.
+  renderAll();
+  // If a pay period detail is currently open, re-render it so that entry
+  // totals and the net pay bar update immediately with the new rates.
+  const openPeriodCard = document.querySelector("#period-detail .period-card[data-period-id]");
+  if (openPeriodCard) editPeriod(openPeriodCard.dataset.periodId);
   toast("Commission rates & defaults saved ✓");
 }
 
@@ -2504,11 +2456,6 @@ async function requireAuth() {
   try {
     await loadAll();
     await renderAll();
-    // If the settings tab is active on boot (e.g. hard refresh), re-render it
-    // now that Supabase-authoritative commission rates have been loaded.
-    if (document.getElementById("view-settings")?.classList.contains("active")) {
-      renderSettings();
-    }
     toast("Loaded ✓");
   } catch (err) {
     console.error(err);
