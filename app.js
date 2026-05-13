@@ -5,6 +5,103 @@ const round2 = n => Math.round((n || 0) * 100) / 100;
 const peso = n => "\u20B1" + (n || 0).toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const fmt = n => (n || 0).toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
+// =============== GREETING BANNER (Thalia) ===============
+const GREETING_MESSAGES = {
+  morning: [
+    "Hope you have a productive and smooth day ahead. Let's get things done.",
+    "Today is a new opportunity — stay focused and consistent.",
+    "Let's make today count. You've got this.",
+    "Start strong, Thalia. The payroll won't run itself.",
+    "A fresh day, a fresh start. Ready to crush it?",
+    "Rise and shine — let's keep everything on track today.",
+    "Make today worth remembering. Focused and forward.",
+  ],
+  afternoon: [
+    "Keep the momentum going — you're doing great.",
+    "Halfway through the day. Stay sharp and finish strong.",
+    "The afternoon grind is real. Stay steady, Thalia.",
+    "Good progress takes patience. Keep going.",
+    "Don't slow down now — the best part of the day is still ahead.",
+    "Push through. Every task done now is one less for tomorrow.",
+    "You're in the zone. Keep that energy.",
+  ],
+  evening: [
+    "Wrapping up for the day? Great work, Thalia.",
+    "The day is winding down — finish what matters most.",
+    "Evening already. Hope today was productive.",
+    "Good evening, Thalia. Take a breath and review the day.",
+    "Almost done. Tie up loose ends and end strong.",
+    "The payroll's in good hands — yours. Nice work today.",
+    "Evening check-in: how did the day treat you?",
+  ],
+  night: [
+    "Still at it? Respect. Rest when you can.",
+    "Late nights build great outcomes — but sleep matters too.",
+    "Burning the midnight oil, Thalia? Don't forget to rest.",
+    "The quiet hours are productive. Just don't overdo it.",
+    "Night owl mode activated. Stay focused, then log off.",
+    "Working late again? Your dedication is showing.",
+    "Almost a new day. Wrap up and recharge.",
+  ],
+};
+
+function getPhilippineTime() {
+  return new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Manila" }));
+}
+
+function getTimeOfDay(hour) {
+  if (hour >= 6  && hour < 12) return "morning";
+  if (hour >= 12 && hour < 18) return "afternoon";
+  if (hour >= 18 && hour < 22) return "evening";
+  return "night";
+}
+
+const TIME_EMOJI  = { morning: "🌅", afternoon: "🌤️", evening: "🌙", night: "🌌" };
+const TIME_LABEL  = { morning: "Good morning", afternoon: "Good afternoon", evening: "Good evening", night: "Good evening" };
+
+function getDailyMessage(period) {
+  const msgs = GREETING_MESSAGES[period];
+  const now = getPhilippineTime();
+  const start = new Date(now.getFullYear(), 0, 0);
+  const dayOfYear = Math.floor((now - start) / 86400000);
+  return msgs[dayOfYear % msgs.length];
+}
+
+let _greetingClockInterval = null;
+
+function updateGreetingBanner() {
+  const now    = getPhilippineTime();
+  const hour   = now.getHours();
+  const min    = now.getMinutes();
+  const period = getTimeOfDay(hour);
+
+  const h12  = hour % 12 || 12;
+  const mm   = String(min).padStart(2, "0");
+  const ampm = hour < 12 ? "AM" : "PM";
+
+  const titleEl = document.getElementById("greeting-title");
+  const msgEl   = document.getElementById("greeting-msg");
+  const emojiEl = document.getElementById("greeting-emoji");
+  const timeEl  = document.getElementById("greeting-time");
+  const ampmEl  = document.getElementById("greeting-ampm");
+  if (!titleEl) return;
+
+  titleEl.textContent = TIME_LABEL[period] + ", Thalia.";
+  msgEl.textContent   = getDailyMessage(period);
+  emojiEl.textContent = TIME_EMOJI[period];
+  timeEl.textContent  = h12 + ":" + mm;
+  ampmEl.textContent  = ampm;
+
+  const banner = document.getElementById("greeting-banner");
+  if (banner) banner.className = "greeting-banner greeting-banner--" + period;
+}
+
+function startGreetingClock() {
+  updateGreetingBanner();
+  if (_greetingClockInterval) clearInterval(_greetingClockInterval);
+  _greetingClockInterval = setInterval(updateGreetingBanner, 30000);
+}
+
 // =============== CONSTANTS ===============
 // Default brands list for the dropdown in Settings
 const DEFAULT_BRAND_NAMES = ["Leilei", "Aion", "GAC", "MG", "Chery", "Omoda & Jaecoo"];
@@ -1561,6 +1658,7 @@ function buildMonthOptions() {
 }
 
 function renderDashboard() {
+  startGreetingClock();
   // ── Inject month selector into KPI area if not already present ──
   const kpiMonthWrap = document.getElementById("kpi-month-wrap");
   if (kpiMonthWrap) {
