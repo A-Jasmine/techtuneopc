@@ -3213,7 +3213,7 @@ button[onclick^="addEntry"]:hover {
 }
 
 .greeting-text p {
-  font-size: 12.5px;
+  font-size: 14px;
   color: var(--text-soft);
   margin: 0;
   line-height: 1.5;
