@@ -389,14 +389,11 @@ small {
   font-weight: 500;
 }
 
-/* topbar-row1 is transparent on desktop — just a flex passthrough */
-.topbar-row1 {
-  display: contents;
-}
-
 /* ── TABS ── */
 .tabs {
-  margin-left: auto;
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
   display: flex;
   align-items: center;
   gap: 2px;
@@ -1356,8 +1353,10 @@ textarea:focus {
     padding-bottom: 10px;
   }
 
-  /* Row 2: tabs pill — scrollable, no scrollbar visible */
+  /* Row 2: tabs — override absolute centering, go full-width scrollable */
   .tabs {
+    position: static;
+    transform: none;
     width: calc(100% + 32px);
     margin-left: -16px;
     margin-right: -16px;
@@ -1374,8 +1373,6 @@ textarea:focus {
     padding: 6px 12px;
     gap: 2px;
     justify-content: flex-start;
-    border-top-left-radius: 0;
-    border-top-right-radius: 0;
   }
   .tabs::-webkit-scrollbar { display: none; }
 
@@ -1394,7 +1391,6 @@ textarea:focus {
     gap: 8px;
   }
 
-  /* Brand: hide subtitle on very small screens */
   .brand h1 { font-size: 13px; }
 
   main {
@@ -1665,6 +1661,7 @@ textarea:focus {
   display: flex;
   align-items: center;
   gap: 12px;
+  flex-shrink: 0;
 }
 .user-email {
   font-size: 12px;
