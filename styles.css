@@ -3192,38 +3192,12 @@ button[onclick^="addEntry"]:hover {
   align-items: center;
   justify-content: space-between;
   gap: 16px;
-  padding: 20px 26px;
-  border-radius: var(--radius-lg);
+  padding: 10px 4px 18px;
   margin-bottom: 4px;
-  border: 1px solid var(--border);
-  background: var(--surface);
-  box-shadow: var(--shadow-sm);
-  transition: background .3s ease, border-color .3s ease;
-  overflow: hidden;
-  position: relative;
+  background: none;
+  border: none;
+  box-shadow: none;
 }
-
-/* Subtle shimmer line at the top */
-.greeting-banner::before {
-  content: "";
-  position: absolute;
-  top: 0; left: 0; right: 0;
-  height: 3px;
-  border-radius: 3px 3px 0 0;
-  background: linear-gradient(90deg, var(--gb-accent-a, #f59e0b), var(--gb-accent-b, #fbbf24));
-}
-
-/* Period accent themes — Light */
-.greeting-banner--morning  { --gb-accent-a: #f59e0b; --gb-accent-b: #fcd34d; background: linear-gradient(120deg, #fffbeb 0%, var(--surface) 60%); border-color: #fde68a; }
-.greeting-banner--afternoon{ --gb-accent-a: #2563eb; --gb-accent-b: #60a5fa; background: linear-gradient(120deg, #eff6ff 0%, var(--surface) 60%); border-color: #bfdbfe; }
-.greeting-banner--evening  { --gb-accent-a: #7c3aed; --gb-accent-b: #a78bfa; background: linear-gradient(120deg, #f5f3ff 0%, var(--surface) 60%); border-color: #ddd6fe; }
-.greeting-banner--night    { --gb-accent-a: #1e40af; --gb-accent-b: #6366f1; background: linear-gradient(120deg, #1e1b4b08 0%, var(--surface) 60%); border-color: #c7d2fe; }
-
-/* Period accent themes — Dark */
-[data-theme="dark"] .greeting-banner--morning  { background: linear-gradient(120deg, #2a1f0a 0%, var(--surface) 55%); border-color: #78350f; }
-[data-theme="dark"] .greeting-banner--afternoon{ background: linear-gradient(120deg, #172035 0%, var(--surface) 55%); border-color: #1e3a5f; }
-[data-theme="dark"] .greeting-banner--evening  { background: linear-gradient(120deg, #1e1535 0%, var(--surface) 55%); border-color: #4c1d95; }
-[data-theme="dark"] .greeting-banner--night    { background: linear-gradient(120deg, #0f0f2a 0%, var(--surface) 55%); border-color: #312e81; }
 
 .greeting-left {
   display: flex;
