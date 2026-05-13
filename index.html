@@ -224,32 +224,7 @@
         <label>Position<input id="edit-emp-pos" /></label>
         <label>Base Rate (per day)
           <select id="edit-emp-base">
-            <option value="1000">₱1,000 / day</option>
-            <option value="1100">₱1,100 / day</option>
-            <option value="1200">₱1,200 / day</option>
-          </select>
-        </label>
-      </div>
-      <div class="modal-foot">
-        <button class="btn" onclick="closeEditEmpDialog()">Cancel</button>
-        <button class="btn primary" onclick="saveEditEmp()"><i data-lucide="check"></i> Save Changes</button>
-      </div>
-    </div>
-  </div>
-
-  <!-- Edit Employee Modal -->
-  <div class="modal" id="edit-emp-modal">
-    <div class="modal-content">
-      <div class="modal-head">
-        <h3><i data-lucide="user-cog"></i> Edit Employee</h3>
-        <button class="icon-btn" onclick="closeEditEmpDialog()"><i data-lucide="x"></i></button>
-      </div>
-      <div class="form">
-        <input type="hidden" id="edit-emp-id" />
-        <label>Full Name<input id="edit-emp-name" placeholder="e.g. Juan dela Cruz" /></label>
-        <label>Position<input id="edit-emp-pos" /></label>
-        <label>Base Rate (per day)
-          <select id="edit-emp-base">
+            <option value="800">₱800 / day</option>
             <option value="1000">₱1,000 / day</option>
             <option value="1100">₱1,100 / day</option>
             <option value="1200">₱1,200 / day</option>
@@ -275,6 +250,7 @@
         <label>Position<input id="emp-pos" value="Automotive Window Tint Installer" /></label>
         <label>Base Rate (per day)
           <select id="emp-base">
+            <option value="800">₱800 / day</option>
             <option value="1000">₱1,000 / day</option>
             <option value="1100">₱1,100 / day</option>
             <option value="1200">₱1,200 / day</option>
@@ -283,8 +259,8 @@
         <div class="rate-info-box">
           <i data-lucide="info"></i>
           <div>
-            <strong>Half-day = ½ base rate</strong>
-            <span>Toggle "Half Day" on a daily entry to pay half the base rate.</span>
+            <strong>Half-day = ½ base rate &nbsp;·&nbsp; OT rate auto-calculated</strong>
+            <span>Toggle "Half Day" on a daily entry to pay half the base rate. OT rates: ₱800→₱125/hr, ₱1,000→₱156.25/hr, ₱1,100→₱171.88/hr, ₱1,200→₱187.50/hr.</span>
           </div>
         </div>
       </div>
