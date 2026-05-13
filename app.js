@@ -577,6 +577,21 @@ function refreshEmpDropdown() {
     ? '<option value="">— Select employee —</option>' + state.employees.map(e => `<option value="${e.id}">${e.name}</option>`).join("")
     : '<option value="">No employees</option>';
   if (prev && state.employees.find(e => e.id === prev)) sel.value = prev;
+  // Attach change listener once (idempotent via flag)
+  if (!sel._empChangeAttached) {
+    sel._empChangeAttached = true;
+    sel.addEventListener("change", () => {
+      // Reset filters and detail pane whenever the selected employee changes
+      periodFilter.month = "";
+      periodFilter.search = "";
+      const detail = document.getElementById("period-detail");
+      if (detail) detail.innerHTML = "";
+      // Remove stale floating net pay pill if present
+      const floatEl = document.getElementById("floating-net-pay");
+      if (floatEl) { if (floatEl._ioCleanup) floatEl._ioCleanup(); else floatEl.remove(); }
+      renderPayroll();
+    });
+  }
 }
 
 async function addPeriod() {
@@ -1480,9 +1495,9 @@ function renderEntries(pid) {
       </div>
       <div class="entry-grid">
         <label>Date<input type="date" value="${e.date}" onchange="updateEntry('${pid}','${e.id}','date',this.value)"></label>
-        <label>Location<select onchange="updateEntry('${pid}','${e.id}','location',this.value)">${LOCATIONS.map(l => `<option ${l === e.location ? "selected" : ""}>${l}</option>`).join("")}</select></label>
-        <label style="${isOffsite ? offOpacity : ''}">Time In<input type="time" value="${e.time_in || ''}" ${isOffsite ? "disabled" : ""} onchange="updateEntry('${pid}','${e.id}','time_in',this.value)"></label>
-        <label style="${isOffsite ? offOpacity : ''}">Time Out<input type="time" value="${e.time_out || ''}" ${isOffsite ? "disabled" : ""} onchange="updateEntry('${pid}','${e.id}','time_out',this.value)"></label>
+        <label>Location${isAbsent ? '<input type="text" value="-" disabled>' : `<select onchange="updateEntry('${pid}','${e.id}','location',this.value)">${LOCATIONS.map(l => `<option ${l === e.location ? "selected" : ""}>${l}</option>`).join("")}</select>`}</label>
+        <label style="${(isOffsite || isAbsent) ? offOpacity : ''}">Time In${isAbsent ? '<input type="text" value="-" disabled>' : `<input type="time" value="${e.time_in || ''}" ${isOffsite ? "disabled" : ""} onchange="updateEntry('${pid}','${e.id}','time_in',this.value)">`}</label>
+        <label style="${(isOffsite || isAbsent) ? offOpacity : ''}">Time Out${isAbsent ? '<input type="text" value="-" disabled>' : `<input type="time" value="${e.time_out || ''}" ${isOffsite ? "disabled" : ""} onchange="updateEntry('${pid}','${e.id}','time_out',this.value)">`}</label>
       </div>
       <div class="base-info-row">
         <span class="base-info-label"><i data-lucide="wallet"></i> ${baseLabel}</span>
@@ -1559,11 +1574,13 @@ function renderEntries(pid) {
         <h4>Commission</h4>
         <div class="cf-brand-bar">
           <label class="cf-brand-label">Brand
-            <select onchange="updateEntry('${pid}','${e.id}','brand',this.value);renderEntries('${pid}')" ${isOffsite ? "disabled" : ""}>
+            ${isAbsent
+              ? `<input type="text" value="-" disabled style="opacity:.5">`
+              : `<select onchange="updateEntry('${pid}','${e.id}','brand',this.value);renderEntries('${pid}')" ${isOffsite ? "disabled" : ""}>
               ${brandOptions}
-            </select>
+            </select>`}
           </label>
-          ${brandHint}
+          ${isAbsent ? '' : brandHint}
         </div>
         <div class="commission-grid" id="comm-grid-${e.id}">
           <div class="cf-card" id="vlist-${e.id}-sedan"></div>
@@ -2157,8 +2174,8 @@ function exportCSV(pid) {
     const otM = +e.ot_minutes || 0;
     const totalOTLabel = formatOT(otH, otM);
     aoa.push([
-      xText(e.date), xText(e.location), xText(to12h(e.time_in) || "—"), xText(to12h(e.time_out) || "—"), xText(type),
-      xNum(c.base), xText(String(otH)), xText(String(otM)), xText(totalOTLabel), xText((e.brand || "").toUpperCase()),
+      xText(e.date), xText(e.is_absent ? "-" : (e.location || "—")), xText(e.is_absent ? "-" : (to12h(e.time_in) || "—")), xText(e.is_absent ? "-" : (to12h(e.time_out) || "—")), xText(type),
+      xNum(c.base), xText(String(otH)), xText(String(otM)), xText(totalOTLabel), xText(e.is_absent ? "-" : (e.brand || "").toUpperCase()),
       xText(String(e.sedan_qty || 0)), xText(String(e.mpv_qty || 0)), xText(String(e.sunroof_qty || 0)), xText(String(e.scrapping_qty || 0)), xText(String(e.tubes_qty || 0)), xText(String(e.divide_by || 1)),
       xNum(c.commission), xNum(c.otPay), xNum(c.holiday), xText(e.holiday_notes || ""), xNum(c.gas), xNum(c.total), xText(e.notes || "")
     ]);
@@ -2417,7 +2434,7 @@ function exportPDF(pid) {
         }
         return rows.filter(r => +r.qty > 0).map(r => { const d = +r.div||1; return d>1?`${r.qty}÷${d}`:String(r.qty); }).join("+") || "—";
       };
-      return [e.date, e.location || "—", to12h(e.time_in) || "—", to12h(e.time_out) || "—", type, (e.brand || "").toUpperCase(),
+      return [e.date, e.is_absent ? "-" : (e.location || "—"), e.is_absent ? "-" : (to12h(e.time_in) || "—"), e.is_absent ? "-" : (to12h(e.time_out) || "—"), type, e.is_absent ? "-" : (e.brand || "").toUpperCase(),
       vSummary(vl.sedan), vSummary(vl.mpv), vSummary(vl.sunroof),
       vSummary(vl.scrap), vSummary(vl.tubes),
       otH || "—", otM || "—",
