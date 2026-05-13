@@ -19,24 +19,17 @@
 <body>
 
   <header class="topbar">
-    <div class="topbar-row1">
-      <div class="brand">
-        <div class="brand-icon">
-          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"
-            stroke-linecap="round" stroke-linejoin="round">
-            <rect x="2" y="5" width="20" height="14" rx="2" />
-            <line x1="2" y1="10" x2="22" y2="10" />
-          </svg>
-        </div>
-        <div>
-          <h1>Techtune Solutions Enterprises OPC</h1>
-          <small>Payroll System</small>
-        </div>
+    <div class="brand">
+      <div class="brand-icon">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"
+          stroke-linecap="round" stroke-linejoin="round">
+          <rect x="2" y="5" width="20" height="14" rx="2" />
+          <line x1="2" y1="10" x2="22" y2="10" />
+        </svg>
       </div>
-      <div class="user-menu">
-        <span class="user-email" id="user-email"></span>
-        <button class="theme-toggle" id="theme-toggle-btn" title="Toggle dark mode" onclick="toggleTheme()"><i data-lucide="moon"></i></button>
-        <button class="btn ghost" onclick="logout()" title="Sign out"><i data-lucide="log-out"></i> Sign out</button>
+      <div>
+        <h1>Techtune Solutions Enterprises OPC</h1>
+        <small>Payroll System</small>
       </div>
     </div>
     <nav class="tabs">
@@ -45,12 +38,33 @@
       <button class="tab" data-tab="payroll"><i data-lucide="file-text"></i> Payroll</button>
       <button class="tab" data-tab="settings"><i data-lucide="settings"></i> Settings</button>
     </nav>
+    <div class="user-menu">
+      <span class="user-email" id="user-email"></span>
+      <button class="theme-toggle" id="theme-toggle-btn" title="Toggle dark mode" onclick="toggleTheme()"><i data-lucide="moon"></i></button>
+      <button class="btn ghost" onclick="logout()" title="Sign out"><i data-lucide="log-out"></i> Sign out</button>
+    </div>
   </header>
 
   <main>
 
     <!-- DASHBOARD -->
     <section class="view active" id="view-dashboard">
+
+      <!-- ── Thalia Greeting Banner ── -->
+      <div class="greeting-banner" id="greeting-banner">
+        <div class="greeting-left">
+          <div class="greeting-emoji" id="greeting-emoji">🌅</div>
+          <div class="greeting-text">
+            <h2 id="greeting-title">Good morning, Thalia.</h2>
+            <p id="greeting-msg">Hope you have a productive and smooth day ahead. Let's get things done.</p>
+          </div>
+        </div>
+        <div class="greeting-clock">
+          <span id="greeting-time">00:00:00</span>
+          <small id="greeting-ampm">AM</small>
+        </div>
+      </div>
+
       <div class="kpi-grid">
         <div class="kpi kpi-blue">
           <div class="kpi-icon"><i data-lucide="users"></i></div>
