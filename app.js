@@ -215,6 +215,52 @@ const LOCATIONS = [
 ];
 const COMPANY = { name: "Techtune Solutions Enterprises OPC", addr1: "Unit 6505 Valencia Casa De Sequoia", addr2: "Padre Diego Cera Ave., Elias Aldana, Las Pinas City", email: "techtunesolutions.enterprises@gmail.com" };
 
+// =============== AUTOFILL STATE ===============
+// Keyed by period ID. Stores { enabled, location, brand, time_in, time_out, divide_by }
+// Resets when a new period is opened via editPeriod() or employee changes.
+const _autofill = {};
+
+function getAutofill(pid) {
+  return _autofill[pid] || { enabled: false };
+}
+
+function setAutofillEnabled(pid, enabled) {
+  if (!_autofill[pid]) _autofill[pid] = { enabled: false };
+  _autofill[pid].enabled = enabled;
+  renderAutofillToggle(pid);
+}
+
+// Snapshot the last entry's carry-over fields into the autofill state for this period
+function snapshotAutofill(pid) {
+  const p = state.periods.find(x => x.id === pid);
+  if (!p || !p.entries.length) return;
+  const last = [...p.entries].sort((a, b) => (a.date > b.date ? 1 : -1)).slice(-1)[0];
+  if (!last) return;
+  if (!_autofill[pid]) _autofill[pid] = { enabled: false };
+  _autofill[pid].location  = last.location  || "";
+  _autofill[pid].brand     = last.brand     || DEFAULT_BRAND_KEY();
+  _autofill[pid].time_in   = last.time_in   || "08:00";
+  _autofill[pid].time_out  = last.time_out  || "17:00";
+  _autofill[pid].divide_by = last.divide_by || 1;
+}
+
+function renderAutofillToggle(pid) {
+  const af = getAutofill(pid);
+  const wrap = document.getElementById(`autofill-toggle-${pid}`);
+  if (!wrap) return;
+  const location = af.location || "";
+  const hint = location ? `"${location}"` : "previous day";
+  wrap.innerHTML = `
+    <label class="autofill-toggle-label" title="Carry over location, brand, shift, and division from the previous day">
+      <input type="checkbox" ${af.enabled ? "checked" : ""}
+        onchange="setAutofillEnabled('${pid}',this.checked)">
+      <span class="autofill-toggle-box"></span>
+      <span class="autofill-toggle-text">
+        Auto-fill from ${hint}
+      </span>
+    </label>`;
+}
+
 // derive hourly OT from base rate (orig 1000 -> 156.25 -> /6.4)
 const otRateFromBase = b => round2((b || 1000) / 6.4);
 
@@ -757,13 +803,16 @@ function editPeriod(id) {
 
       <div class="section-label"><i data-lucide="list"></i> Daily Work Log</div>
       <div id="entries-${p.id}"></div>
-      <div id="add-day-btn-wrap-${p.id}" style="display:flex;align-items:center;gap:10px"><button class="btn primary" id="add-day-btn-${p.id}" onclick="addEntry('${p.id}')"><i data-lucide="plus"></i> Add Day</button><span id="add-day-hint-${p.id}" style="font-size:11px;color:var(--text-dim)"></span></div>
+      <div id="add-day-btn-wrap-${p.id}" style="display:flex;align-items:center;gap:10px;flex-wrap:wrap"><button class="btn primary" id="add-day-btn-${p.id}" onclick="addEntry('${p.id}')"><i data-lucide="plus"></i> Add Day</button><span id="add-day-hint-${p.id}" style="font-size:11px;color:var(--text-dim)"></span><div id="autofill-toggle-${p.id}" class="autofill-toggle-wrap"></div></div>
 
       <div class="section-label" style="margin-top:22px"><i data-lucide="minus-circle"></i> Deductions</div>
       <div id="deds-${p.id}"></div>
       <button class="btn" onclick="addDed('${p.id}')"><i data-lucide="plus"></i> Add Deduction</button>
     </div>`;
   renderEntries(p.id); renderDeds(p.id); updateAddDayButton(p.id); lucide.createIcons();
+  // Snapshot autofill state from last entry and render toggle
+  snapshotAutofill(p.id);
+  renderAutofillToggle(p.id);
 
   // ── Floating Net Pay pill ──
   // Remove any stale one first
@@ -890,10 +939,20 @@ async function addEntry(pid) {
   const emp = state.employees.find(e => e.id === p.employee_id);
   const defaultBrand = DEFAULT_BRAND_KEY();
   const nextDate = getNextEntryDate(p);
+
+  // Autofill: carry over fields from previous day if toggle is on
+  const af = getAutofill(pid);
+  const afLocation  = af.enabled && af.location  ? af.location  : "Calamba";
+  const afBrand     = af.enabled && af.brand     ? af.brand     : defaultBrand;
+  const afTimeIn    = af.enabled && af.time_in   ? af.time_in   : "08:00";
+  const afTimeOut   = af.enabled && af.time_out  ? af.time_out  : "17:00";
+  const afDivideBy  = af.enabled && af.divide_by ? af.divide_by : 1;
+  const wasAutofilled = af.enabled && p.entries.length > 0;
+
   const newEntry = {
-    pay_period_id: pid, date: nextDate, location: "Calamba",
-    time_in: "08:00", time_out: "17:00", ot_hours: 0, ot_minutes: 0, ot_rate: otRateFromBase(emp.base_rate),
-    brand: defaultBrand,
+    pay_period_id: pid, date: nextDate, location: afLocation,
+    time_in: afTimeIn, time_out: afTimeOut, ot_hours: 0, ot_minutes: 0, ot_rate: otRateFromBase(emp.base_rate),
+    brand: afBrand,
     sedan_qty: DEFAULT_UNITS().sedan_qty || 0,
     mpv_qty: DEFAULT_UNITS().mpv_qty || 0,
     sunroof_qty: DEFAULT_UNITS().sunroof_qty || 0,
@@ -901,18 +960,23 @@ async function addEntry(pid) {
     tubes_qty: DEFAULT_UNITS().tubes_qty || 0,
     units_list: JSON.stringify([]),
     vehicle_lists: JSON.stringify({ sedan: [], mpv: [], sunroof: [], scrap: [], tubes: [] }),
-    divide_by: 1,
+    divide_by: afDivideBy,
     sedan_div: 1, mpv_div: 1, sunroof_div: 1, scrap_div: 1, tubes_div: 1,
     gas_allowance: 0, is_holiday: false, is_offset: false, is_halfday: false, is_absent: false,
-    holiday_type: "none", holiday_notes: "", notes: ""
+    holiday_type: "none", holiday_notes: "", notes: "",
+    _autofilled: wasAutofilled   // ephemeral UI flag (not stored in DB)
   };
   const { data: { user: _u4 } } = await sb.auth.getUser();
   newEntry.user_id = _u4.id;
-  const { data, error } = await sb.from('entries').insert(newEntry).select().single();
+  // Don't send _autofilled to the DB
+  const { _autofilled: _af, ...entryForDB } = newEntry;
+  const { data, error } = await sb.from('entries').insert(entryForDB).select().single();
   if (error) return toast("Add entry failed: " + error.message);
-  p.entries.push(data);
+  // Attach the ephemeral flag to the in-memory object for the banner chip
+  p.entries.push({ ...data, _autofilled: _af });
+  snapshotAutofill(pid);
   editPeriod(pid);
-  toast("Day added ✓");
+  toast(_af ? `Day added ✓ — Auto-filled from previous day` : "Day added ✓");
   // Scroll to the newly added entry after render
   requestAnimationFrame(() => {
     const newEl = document.getElementById("entry-" + data.id);
@@ -1470,12 +1534,14 @@ function renderEntries(pid) {
     ).join("");
 
     const isAbsent = !!e.is_absent;
+    const isOffset = !!e.is_offset;
     const offOpacity = (isOffsite || isAbsent) ? "opacity:.38;pointer-events:none;user-select:none" : "";
 
     // Banner: Day N | weekday date | status + delete
     const dayNum = entryIdx + 1;
     const dateStr = e.date ? new Date(e.date + "T00:00:00").toLocaleDateString("en-PH", { weekday: "long", month: "long", day: "numeric", year: "numeric" }) : "—";
     const isComplete = c.total > 0;
+    const autofillChip = e._autofilled ? `<span class="autofill-chip" title="Location, brand &amp; shift auto-filled from previous day">⟳ Auto-filled</span>` : "";
     const statusBadge = isAbsent
       ? `<span class="edb-status edb-status-absent"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg> Absent</span>`
       : isComplete
@@ -1487,6 +1553,7 @@ function renderEntries(pid) {
         <span class="edb-left">Day ${String(dayNum).padStart(2, '0')}</span>
         <span class="edb-center">${dateStr}</span>
         <div class="edb-right">
+          ${autofillChip}
           ${statusBadge}
           <button class="edb-delete-btn" onclick="delEntry('${pid}','${e.id}')" title="Delete this day's entry">
             <i data-lucide="trash-2"></i>
@@ -1495,9 +1562,9 @@ function renderEntries(pid) {
       </div>
       <div class="entry-grid">
         <label>Date<input type="date" value="${e.date}" onchange="updateEntry('${pid}','${e.id}','date',this.value)"></label>
-        <label>Location${isAbsent ? '<input type="text" value="—" disabled>' : `<select onchange="updateEntry('${pid}','${e.id}','location',this.value)">${LOCATIONS.map(l => `<option ${l === e.location ? "selected" : ""}>${l}</option>`).join("")}</select>`}</label>
-        <label style="${(isOffsite || isAbsent) ? offOpacity : ''}">Time In${isAbsent ? '<input type="text" value="—" disabled>' : `<input type="time" value="${e.time_in || ''}" ${isOffsite ? "disabled" : ""} onchange="updateEntry('${pid}','${e.id}','time_in',this.value)">`}</label>
-        <label style="${(isOffsite || isAbsent) ? offOpacity : ''}">Time Out${isAbsent ? '<input type="text" value="—" disabled>' : `<input type="time" value="${e.time_out || ''}" ${isOffsite ? "disabled" : ""} onchange="updateEntry('${pid}','${e.id}','time_out',this.value)">`}</label>
+        <label>Location${(isAbsent || isOffset) ? '<input type="text" value="—" disabled>' : `<select onchange="updateEntry('${pid}','${e.id}','location',this.value)">${LOCATIONS.map(l => `<option ${l === e.location ? "selected" : ""}>${l}</option>`).join("")}</select>`}</label>
+        <label style="${(isOffsite || isAbsent || isOffset) ? offOpacity : ''}">Time In${(isAbsent || isOffset) ? '<input type="text" value="—" disabled>' : `<input type="time" value="${e.time_in || ''}" ${isOffsite ? "disabled" : ""} onchange="updateEntry('${pid}','${e.id}','time_in',this.value)">`}</label>
+        <label style="${(isOffsite || isAbsent || isOffset) ? offOpacity : ''}">Time Out${(isAbsent || isOffset) ? '<input type="text" value="—" disabled>' : `<input type="time" value="${e.time_out || ''}" ${isOffsite ? "disabled" : ""} onchange="updateEntry('${pid}','${e.id}','time_out',this.value)">`}</label>
       </div>
       <div class="base-info-row">
         <span class="base-info-label"><i data-lucide="wallet"></i> ${baseLabel}</span>
@@ -1574,13 +1641,13 @@ function renderEntries(pid) {
         <h4>Commission</h4>
         <div class="cf-brand-bar">
           <label class="cf-brand-label">Brand
-            ${isAbsent
+            ${(isAbsent || isOffset)
         ? `<input type="text" value="—" disabled style="opacity:.5">`
         : `<select onchange="updateEntry('${pid}','${e.id}','brand',this.value);renderEntries('${pid}')" ${isOffsite ? "disabled" : ""}>
               ${brandOptions}
             </select>`}
           </label>
-          ${isAbsent ? '' : brandHint}
+          ${(isAbsent || isOffset) ? '' : brandHint}
         </div>
         <div class="commission-grid" id="comm-grid-${e.id}">
           <div class="cf-card" id="vlist-${e.id}-sedan"></div>
@@ -2173,9 +2240,10 @@ function exportCSV(pid) {
     const otH = +e.ot_hours || 0;
     const otM = +e.ot_minutes || 0;
     const totalOTLabel = formatOT(otH, otM);
+    const showDash = e.is_absent || e.is_offset;
     aoa.push([
-      xText(e.date), xText(e.is_absent ? "—" : (e.location || "—")), xText(e.is_absent ? "—" : (to12h(e.time_in) || "—")), xText(e.is_absent ? "—" : (to12h(e.time_out) || "—")), xText(type),
-      xNum(c.base), xText(String(otH)), xText(String(otM)), xText(totalOTLabel), xText(e.is_absent ? "—" : (e.brand || "").toUpperCase()),
+      xText(e.date), xText(showDash ? "—" : (e.location || "—")), xText(showDash ? "—" : (to12h(e.time_in) || "—")), xText(showDash ? "—" : (to12h(e.time_out) || "—")), xText(type),
+      xNum(c.base), xText(String(otH)), xText(String(otM)), xText(totalOTLabel), xText(showDash ? "—" : (e.brand || "").toUpperCase()),
       xText(String(e.sedan_qty || 0)), xText(String(e.mpv_qty || 0)), xText(String(e.sunroof_qty || 0)), xText(String(e.scrapping_qty || 0)), xText(String(e.tubes_qty || 0)), xText(String(e.divide_by || 1)),
       xNum(c.commission), xNum(c.otPay), xNum(c.holiday), xText(e.holiday_notes || ""), xNum(c.gas), xNum(c.total), xText(e.notes || "")
     ]);
@@ -2434,7 +2502,7 @@ function exportPDF(pid) {
         }
         return rows.filter(r => +r.qty > 0).map(r => { const d = +r.div || 1; return d > 1 ? `${r.qty}÷${d}` : String(r.qty); }).join("+") || "—";
       };
-      return [e.date, e.is_absent ? "—" : (e.location || "—"), e.is_absent ? "—" : (to12h(e.time_in) || "—"), e.is_absent ? "—" : (to12h(e.time_out) || "—"), type, e.is_absent ? "—" : (e.brand || "").toUpperCase(),
+      return [e.date, (e.is_absent || e.is_offset) ? "—" : (e.location || "—"), (e.is_absent || e.is_offset) ? "—" : (to12h(e.time_in) || "—"), (e.is_absent || e.is_offset) ? "—" : (to12h(e.time_out) || "—"), type, (e.is_absent || e.is_offset) ? "—" : (e.brand || "").toUpperCase(),
       vSummary(vl.sedan), vSummary(vl.mpv), vSummary(vl.sunroof),
       vSummary(vl.scrap), vSummary(vl.tubes),
       otH || "—", otM || "—",
