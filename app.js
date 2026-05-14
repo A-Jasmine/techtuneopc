@@ -215,52 +215,6 @@ const LOCATIONS = [
 ];
 const COMPANY = { name: "Techtune Solutions Enterprises OPC", addr1: "Unit 6505 Valencia Casa De Sequoia", addr2: "Padre Diego Cera Ave., Elias Aldana, Las Pinas City", email: "techtunesolutions.enterprises@gmail.com" };
 
-// =============== AUTOFILL STATE ===============
-// Keyed by period ID. Stores { enabled, location, brand, time_in, time_out, divide_by }
-// Resets when a new period is opened via editPeriod() or employee changes.
-const _autofill = {};
-
-function getAutofill(pid) {
-  return _autofill[pid] || { enabled: false };
-}
-
-function setAutofillEnabled(pid, enabled) {
-  if (!_autofill[pid]) _autofill[pid] = { enabled: false };
-  _autofill[pid].enabled = enabled;
-  renderAutofillToggle(pid);
-}
-
-// Snapshot the last entry's carry-over fields into the autofill state for this period
-function snapshotAutofill(pid) {
-  const p = state.periods.find(x => x.id === pid);
-  if (!p || !p.entries.length) return;
-  const last = [...p.entries].sort((a, b) => (a.date > b.date ? 1 : -1)).slice(-1)[0];
-  if (!last) return;
-  if (!_autofill[pid]) _autofill[pid] = { enabled: false };
-  _autofill[pid].location  = last.location  || "";
-  _autofill[pid].brand     = last.brand     || DEFAULT_BRAND_KEY();
-  _autofill[pid].time_in   = last.time_in   || "08:00";
-  _autofill[pid].time_out  = last.time_out  || "17:00";
-  _autofill[pid].divide_by = last.divide_by || 1;
-}
-
-function renderAutofillToggle(pid) {
-  const af = getAutofill(pid);
-  const wrap = document.getElementById(`autofill-toggle-${pid}`);
-  if (!wrap) return;
-  const location = af.location || "";
-  const hint = location ? `"${location}"` : "previous day";
-  wrap.innerHTML = `
-    <label class="autofill-toggle-label" title="Carry over location, brand, shift, and division from the previous day">
-      <input type="checkbox" ${af.enabled ? "checked" : ""}
-        onchange="setAutofillEnabled('${pid}',this.checked)">
-      <span class="autofill-toggle-box"></span>
-      <span class="autofill-toggle-text">
-        Auto-fill from ${hint}
-      </span>
-    </label>`;
-}
-
 // derive hourly OT from base rate (orig 1000 -> 156.25 -> /6.4)
 const otRateFromBase = b => round2((b || 1000) / 6.4);
 
@@ -284,6 +238,14 @@ function parseUnitsList(e) {
     try { return JSON.parse(e.units_list); } catch (ex) { }
   }
   return [];
+}
+
+// Returns total units quantity for an entry, or "—" when absent/offset or none entered
+function unitsQtyDisplay(e) {
+  if (e.is_absent || e.is_offset) return "—";
+  const list = parseUnitsList(e);
+  const total = list.reduce((s, u) => s + (+u.qty || 0), 0);
+  return total > 0 ? String(total) : "—";
 }
 
 // Vehicle lists: { sedan: [{qty,div},...], mpv: [...], sunroof: [...], scrap: [...], tubes: [...] }
@@ -803,16 +765,13 @@ function editPeriod(id) {
 
       <div class="section-label"><i data-lucide="list"></i> Daily Work Log</div>
       <div id="entries-${p.id}"></div>
-      <div id="add-day-btn-wrap-${p.id}" style="display:flex;align-items:center;gap:10px;flex-wrap:wrap"><button class="btn primary" id="add-day-btn-${p.id}" onclick="addEntry('${p.id}')"><i data-lucide="plus"></i> Add Day</button><span id="add-day-hint-${p.id}" style="font-size:11px;color:var(--text-dim)"></span><div id="autofill-toggle-${p.id}" class="autofill-toggle-wrap"></div></div>
+      <div id="add-day-btn-wrap-${p.id}" style="display:flex;align-items:center;gap:10px;flex-wrap:wrap"><button class="btn primary" id="add-day-btn-${p.id}" onclick="addEntry('${p.id}')"><i data-lucide="plus"></i> Add Day</button><span id="add-day-hint-${p.id}" style="font-size:11px;color:var(--text-dim)"></span></div>
 
       <div class="section-label" style="margin-top:22px"><i data-lucide="minus-circle"></i> Deductions</div>
       <div id="deds-${p.id}"></div>
       <button class="btn" onclick="addDed('${p.id}')"><i data-lucide="plus"></i> Add Deduction</button>
     </div>`;
   renderEntries(p.id); renderDeds(p.id); updateAddDayButton(p.id); lucide.createIcons();
-  // Snapshot autofill state from last entry and render toggle
-  snapshotAutofill(p.id);
-  renderAutofillToggle(p.id);
 
   // ── Floating Net Pay pill ──
   // Remove any stale one first
@@ -939,20 +898,10 @@ async function addEntry(pid) {
   const emp = state.employees.find(e => e.id === p.employee_id);
   const defaultBrand = DEFAULT_BRAND_KEY();
   const nextDate = getNextEntryDate(p);
-
-  // Autofill: carry over fields from previous day if toggle is on
-  const af = getAutofill(pid);
-  const afLocation  = af.enabled && af.location  ? af.location  : "Calamba";
-  const afBrand     = af.enabled && af.brand     ? af.brand     : defaultBrand;
-  const afTimeIn    = af.enabled && af.time_in   ? af.time_in   : "08:00";
-  const afTimeOut   = af.enabled && af.time_out  ? af.time_out  : "17:00";
-  const afDivideBy  = af.enabled && af.divide_by ? af.divide_by : 1;
-  const wasAutofilled = af.enabled && p.entries.length > 0;
-
   const newEntry = {
-    pay_period_id: pid, date: nextDate, location: afLocation,
-    time_in: afTimeIn, time_out: afTimeOut, ot_hours: 0, ot_minutes: 0, ot_rate: otRateFromBase(emp.base_rate),
-    brand: afBrand,
+    pay_period_id: pid, date: nextDate, location: "Calamba",
+    time_in: "08:00", time_out: "17:00", ot_hours: 0, ot_minutes: 0, ot_rate: otRateFromBase(emp.base_rate),
+    brand: defaultBrand,
     sedan_qty: DEFAULT_UNITS().sedan_qty || 0,
     mpv_qty: DEFAULT_UNITS().mpv_qty || 0,
     sunroof_qty: DEFAULT_UNITS().sunroof_qty || 0,
@@ -960,23 +909,18 @@ async function addEntry(pid) {
     tubes_qty: DEFAULT_UNITS().tubes_qty || 0,
     units_list: JSON.stringify([]),
     vehicle_lists: JSON.stringify({ sedan: [], mpv: [], sunroof: [], scrap: [], tubes: [] }),
-    divide_by: afDivideBy,
+    divide_by: 1,
     sedan_div: 1, mpv_div: 1, sunroof_div: 1, scrap_div: 1, tubes_div: 1,
     gas_allowance: 0, is_holiday: false, is_offset: false, is_halfday: false, is_absent: false,
-    holiday_type: "none", holiday_notes: "", notes: "",
-    _autofilled: wasAutofilled   // ephemeral UI flag (not stored in DB)
+    holiday_type: "none", holiday_notes: "", notes: ""
   };
   const { data: { user: _u4 } } = await sb.auth.getUser();
   newEntry.user_id = _u4.id;
-  // Don't send _autofilled to the DB
-  const { _autofilled: _af, ...entryForDB } = newEntry;
-  const { data, error } = await sb.from('entries').insert(entryForDB).select().single();
+  const { data, error } = await sb.from('entries').insert(newEntry).select().single();
   if (error) return toast("Add entry failed: " + error.message);
-  // Attach the ephemeral flag to the in-memory object for the banner chip
-  p.entries.push({ ...data, _autofilled: _af });
-  snapshotAutofill(pid);
+  p.entries.push(data);
   editPeriod(pid);
-  toast(_af ? `Day added ✓ — Auto-filled from previous day` : "Day added ✓");
+  toast("Day added ✓");
   // Scroll to the newly added entry after render
   requestAnimationFrame(() => {
     const newEl = document.getElementById("entry-" + data.id);
@@ -1541,7 +1485,6 @@ function renderEntries(pid) {
     const dayNum = entryIdx + 1;
     const dateStr = e.date ? new Date(e.date + "T00:00:00").toLocaleDateString("en-PH", { weekday: "long", month: "long", day: "numeric", year: "numeric" }) : "—";
     const isComplete = c.total > 0;
-    const autofillChip = e._autofilled ? `<span class="autofill-chip" title="Location, brand &amp; shift auto-filled from previous day">⟳ Auto-filled</span>` : "";
     const statusBadge = isAbsent
       ? `<span class="edb-status edb-status-absent"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg> Absent</span>`
       : isComplete
@@ -1553,7 +1496,6 @@ function renderEntries(pid) {
         <span class="edb-left">Day ${String(dayNum).padStart(2, '0')}</span>
         <span class="edb-center">${dateStr}</span>
         <div class="edb-right">
-          ${autofillChip}
           ${statusBadge}
           <button class="edb-delete-btn" onclick="delEntry('${pid}','${e.id}')" title="Delete this day's entry">
             <i data-lucide="trash-2"></i>
@@ -2232,7 +2174,7 @@ function exportCSV(pid) {
 
   const dailyR = aoa.length;
   aoa.push([xSection("DAILY BREAKDOWN")]); pushMerge(merges, dailyR, 0, dailyR, 22);
-  const headers = ["Date", "Location", "Time In", "Time Out", "Type", "Base Pay", "OT Hrs", "OT Min", "Total OT", "Brand", "Sedan", "MPV", "Sunroof", "Scrap", "Tubes", "Div", "Commission", "OT Pay", "Holiday", "Holiday Notes", "Gas", "Day Total", "Notes"];
+  const headers = ["Date", "Location", "Time In", "Time Out", "Type", "Base Pay", "OT Hrs", "OT Min", "Total OT", "Brand", "Units Qty", "Sedan", "MPV", "Sunroof", "Scrap", "Tubes", "Div", "Commission", "OT Pay", "Holiday", "Holiday Notes", "Gas", "Day Total", "Notes"];
   aoa.push(headers.map(h => xHead(h)));
   p.entries.forEach(e => {
     const c = calcEntry(e, emp.base_rate);
@@ -2244,6 +2186,7 @@ function exportCSV(pid) {
     aoa.push([
       xText(e.date), xText(showDash ? "—" : (e.location || "—")), xText(showDash ? "—" : (to12h(e.time_in) || "—")), xText(showDash ? "—" : (to12h(e.time_out) || "—")), xText(type),
       xNum(c.base), xText(String(otH)), xText(String(otM)), xText(totalOTLabel), xText(showDash ? "—" : (e.brand || "").toUpperCase()),
+      xText(unitsQtyDisplay(e)),
       xText(String(e.sedan_qty || 0)), xText(String(e.mpv_qty || 0)), xText(String(e.sunroof_qty || 0)), xText(String(e.scrapping_qty || 0)), xText(String(e.tubes_qty || 0)), xText(String(e.divide_by || 1)),
       xNum(c.commission), xNum(c.otPay), xNum(c.holiday), xText(e.holiday_notes || ""), xNum(c.gas), xNum(c.total), xText(e.notes || "")
     ]);
@@ -2257,13 +2200,13 @@ function exportCSV(pid) {
   aoa.push([
     xTotal("TOTALS"), xTotal(""), xTotal(""), xTotal(""), xTotal(""),
     xTotal(""), xTotalNum(normOTH), xTotalNum(normOTM), xTotal(formatOT(normOTH, normOTM)), xTotal(""),
-    xTotal(""), xTotal(""), xTotal(""), xTotal(""), xTotal(""), xTotal(""),
+    xTotal(""), xTotal(""), xTotal(""), xTotal(""), xTotal(""), xTotal(""), xTotal(""),
     xTotalNum(t.commission), xTotalNum(t.ot), xTotalNum(t.holiday), xTotal(""), xTotalNum(t.gas), xTotalNum(t.earnings), xTotal("")
   ]);
 
   const ws = XLSX.utils.aoa_to_sheet(aoa.map(row => row.map(cell => cell || xText(""))));
   ws['!merges'] = merges;
-  ws['!cols'] = [{ wch: 12 }, { wch: 14 }, { wch: 10 }, { wch: 10 }, { wch: 9 }, { wch: 11 }, { wch: 7 }, { wch: 7 }, { wch: 9 }, { wch: 8 }, { wch: 7 }, { wch: 7 }, { wch: 8 }, { wch: 7 }, { wch: 7 }, { wch: 6 }, { wch: 13 }, { wch: 11 }, { wch: 11 }, { wch: 18 }, { wch: 10 }, { wch: 13 }, { wch: 22 }];
+  ws['!cols'] = [{ wch: 12 }, { wch: 14 }, { wch: 10 }, { wch: 10 }, { wch: 9 }, { wch: 11 }, { wch: 7 }, { wch: 7 }, { wch: 9 }, { wch: 8 }, { wch: 9 }, { wch: 7 }, { wch: 7 }, { wch: 8 }, { wch: 7 }, { wch: 7 }, { wch: 6 }, { wch: 13 }, { wch: 11 }, { wch: 11 }, { wch: 18 }, { wch: 10 }, { wch: 13 }, { wch: 22 }];
   ws['!rows'] = ws['!rows'] || [];
   ws['!rows'][0] = { hpt: 28 };
 
@@ -2483,7 +2426,7 @@ function exportPDF(pid) {
   // Columns must sum to ≤ 761. Total below = 761.
   doc.autoTable({
     startY: y, margin: { left: margin, right: margin }, theme: "grid",
-    head: [["Date", "Location", "In", "Out", "Type", "Brand", "Sed", "MPV", "Sun", "Scr", "Tub", "OT Hrs", "OT Min", "Commission", "OT Pay", "Holiday", "Hol Notes", "Gas", "Total"]],
+    head: [["Date", "Location", "In", "Out", "Type", "Brand", "Units", "Sed", "MPV", "Sun", "Scr", "Tub", "OT Hrs", "OT Min", "Commission", "OT Pay", "Holiday", "Hol Notes", "Gas", "Total"]],
     body: p.entries.map(e => {
       const c = calcEntry(e, emp.base_rate);
       const holidayType = e.holiday_type || (e.is_holiday ? "onsite" : "none");
@@ -2503,6 +2446,7 @@ function exportPDF(pid) {
         return rows.filter(r => +r.qty > 0).map(r => { const d = +r.div || 1; return d > 1 ? `${r.qty}÷${d}` : String(r.qty); }).join("+") || "—";
       };
       return [e.date, (e.is_absent || e.is_offset) ? "—" : (e.location || "—"), (e.is_absent || e.is_offset) ? "—" : (to12h(e.time_in) || "—"), (e.is_absent || e.is_offset) ? "—" : (to12h(e.time_out) || "—"), type, (e.is_absent || e.is_offset) ? "—" : (e.brand || "").toUpperCase(),
+      unitsQtyDisplay(e),
       vSummary(vl.sedan), vSummary(vl.mpv), vSummary(vl.sunroof),
       vSummary(vl.scrap), vSummary(vl.tubes),
       otH || "—", otM || "—",
@@ -2513,24 +2457,25 @@ function exportPDF(pid) {
     alternateRowStyles: { fillColor: [248, 248, 248] },
     columnStyles: {
       0: { cellWidth: 50 },  // Date
-      1: { cellWidth: 50 },  // Location
-      2: { cellWidth: 38 },  // In
-      3: { cellWidth: 38 },  // Out
-      4: { cellWidth: 40 },  // Type
-      5: { cellWidth: 34 },  // Brand
-      6: { cellWidth: 28, halign: "center" },  // Sed
-      7: { cellWidth: 28, halign: "center" },  // MPV
-      8: { cellWidth: 28, halign: "center" },  // Sun
-      9: { cellWidth: 28, halign: "center" },  // Scr
-      10: { cellWidth: 28, halign: "center" }, // Tub
-      11: { cellWidth: 28, halign: "center" }, // OT Hrs
-      12: { cellWidth: 28, halign: "center" }, // OT Min
-      13: { cellWidth: 58, halign: "right" },  // Commission
-      14: { cellWidth: 46, halign: "right" },  // OT Pay
-      15: { cellWidth: 44, halign: "right" },  // Holiday
-      16: { cellWidth: 54 },                   // Hol Notes
-      17: { cellWidth: 38, halign: "right" },  // Gas
-      18: { cellWidth: 52, halign: "right", fontStyle: "bold" } // Total
+      1: { cellWidth: 46 },  // Location
+      2: { cellWidth: 36 },  // In
+      3: { cellWidth: 36 },  // Out
+      4: { cellWidth: 38 },  // Type
+      5: { cellWidth: 30 },  // Brand
+      6: { cellWidth: 28, halign: "center" },  // Units
+      7: { cellWidth: 26, halign: "center" },  // Sed
+      8: { cellWidth: 26, halign: "center" },  // MPV
+      9: { cellWidth: 26, halign: "center" },  // Sun
+      10: { cellWidth: 26, halign: "center" }, // Scr
+      11: { cellWidth: 26, halign: "center" }, // Tub
+      12: { cellWidth: 26, halign: "center" }, // OT Hrs
+      13: { cellWidth: 26, halign: "center" }, // OT Min
+      14: { cellWidth: 54, halign: "right" },  // Commission
+      15: { cellWidth: 44, halign: "right" },  // OT Pay
+      16: { cellWidth: 42, halign: "right" },  // Holiday
+      17: { cellWidth: 50 },                   // Hol Notes
+      18: { cellWidth: 36, halign: "right" },  // Gas
+      19: { cellWidth: 50, halign: "right", fontStyle: "bold" } // Total
     },
     didDrawPage: () => {
       doc.setFontSize(8); doc.setTextColor(110); doc.setFont("helvetica", "normal");
