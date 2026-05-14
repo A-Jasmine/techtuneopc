@@ -2457,25 +2457,25 @@ function exportPDF(pid) {
     alternateRowStyles: { fillColor: [248, 248, 248] },
     columnStyles: {
       0: { cellWidth: 50 },  // Date
-      1: { cellWidth: 46 },  // Location
+      1: { cellWidth: 50 },  // Location
       2: { cellWidth: 36 },  // In
       3: { cellWidth: 36 },  // Out
       4: { cellWidth: 38 },  // Type
-      5: { cellWidth: 30 },  // Brand
+      5: { cellWidth: 32 },  // Brand
       6: { cellWidth: 28, halign: "center" },  // Units
-      7: { cellWidth: 26, halign: "center" },  // Sed
-      8: { cellWidth: 26, halign: "center" },  // MPV
-      9: { cellWidth: 26, halign: "center" },  // Sun
-      10: { cellWidth: 26, halign: "center" }, // Scr
-      11: { cellWidth: 26, halign: "center" }, // Tub
-      12: { cellWidth: 26, halign: "center" }, // OT Hrs
-      13: { cellWidth: 26, halign: "center" }, // OT Min
+      7: { cellWidth: 28, halign: "center" },  // Sed
+      8: { cellWidth: 28, halign: "center" },  // MPV
+      9: { cellWidth: 28, halign: "center" },  // Sun
+      10: { cellWidth: 28, halign: "center" }, // Scr
+      11: { cellWidth: 28, halign: "center" }, // Tub
+      12: { cellWidth: 28, halign: "center" }, // OT Hrs
+      13: { cellWidth: 28, halign: "center" }, // OT Min
       14: { cellWidth: 54, halign: "right" },  // Commission
       15: { cellWidth: 44, halign: "right" },  // OT Pay
-      16: { cellWidth: 42, halign: "right" },  // Holiday
+      16: { cellWidth: 44, halign: "right" },  // Holiday
       17: { cellWidth: 50 },                   // Hol Notes
       18: { cellWidth: 36, halign: "right" },  // Gas
-      19: { cellWidth: 50, halign: "right", fontStyle: "bold" } // Total
+      19: { cellWidth: 67, halign: "right", fontStyle: "bold" } // Total
     },
     didDrawPage: () => {
       doc.setFontSize(8); doc.setTextColor(110); doc.setFont("helvetica", "normal");
